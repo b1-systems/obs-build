@@ -429,11 +429,6 @@ sub get_runscripts {
   return @{$config->{'runscripts'}};
 }
 
-sub get_target {
-  my ($config) = @_;
-  return $config->{'target'};
-}
-
 sub get_crossbuild {
   my ($config) = @_;
   return $config->{'crossbuild'};
