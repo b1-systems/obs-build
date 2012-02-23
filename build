@@ -15,6 +15,7 @@ SYS_ROOT=$BUILD_ROOT/sys-root
 
 export BUILD_ARCH BUILD_HOST_ARCH BUILD_ROOT BUILD_RPMS BUILD_DIR BUILD_DEBUG
 export BUILD_DIST
+export CROSSBUILD
 
 ccache=0
 icecream=0
@@ -905,6 +906,9 @@ while test -n "$1"; do
 	BUILD_DIST="$ARG"
 	shift
       ;;
+      --crossbuild)
+        CROSSBUILD=1;
+      ;;
       *-xen|*-kvm|--uml|--qemu)
 	VM_TYPE=${PARAM##*-}
 	if [ -n "$ARG" ]; then
@@ -1379,6 +1383,7 @@ if [ -z "$RUNNING_IN_VM" ]; then
     test -n "$BUILD_RPMS" && echo Using BUILD_RPMS=$BUILD_RPMS
     echo Using BUILD_ARCH=$BUILD_ARCH
     test -n "$VM_TYPE" && echo "Doing $VM_TYPE build${VM_IMAGE:+ in $VM_IMAGE}"
+    test -n "$CROSSBUILD" && echo "Doing crossbuild on $BUILD_ARCH for $TARGET"
     echo
 fi
 
