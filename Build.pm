@@ -278,8 +278,8 @@ sub read_config {
       $config->{'target'} = join(' ', @l);
     } elsif ($l0 eq 'hostarch:') {
       $config->{'hostarch'} = join(' ', @l);
-    } elsif ($l0 eq 'additionalarch:') {
-      push @{$config->{'additionalarchs'}}, { arch => $l[0], sysroot => ( $l[1] || '' ) };
+    } elsif ($l0 eq 'sysroot:') {
+      push @{$config->{'sysroots'}}, { alias => $l[0], proj => $l[1] repo => $l[2], arch => $l[3], sysroot => $l[4] };
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
@@ -437,9 +437,9 @@ sub get_crossbuild {
   return $config->{'crossbuild'};
 }
 
-sub get_additional_archs {
+sub get_sysroots {
   my ($config) = @_;
-  return @{$config->{'additionalarchs'}};
+  return @{$config->{'sysroots'}};
 }
 
 
