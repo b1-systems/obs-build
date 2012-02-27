@@ -379,9 +379,38 @@ sub get_build {
   push @deps, @{$config->{'required(target)'}}; # CROSSBUILD: handle target deps
   push @deps, @{$config->{'support'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
-  @deps = do_subst($config, @deps);
+  my $eok;
+  ($eok, @deps) = do_subst($config, @deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
+  # cross dependency handling needs to be done after substituation
+  # and before dependency expand.
+  my %crossdeps = extract_crossdeps(@deps);
+  @deps = drop_crossdeps(@deps);
   @deps = expand($config, @deps, @ndeps);
+  return ($eok, \@deps, \%crossdeps);
+}
+
+
+# Extract cross dependencies
+# returns a hash with the sysroot-label as key and the package-name/-id as value
+sub extract_crossdeps {
+  my (@deps) = @_;
+  my %crossdeps;
+  for my $p (splice @deps) {
+    if (($p =~ /^(.*)\((.*)\)$/)) {
+           my $name = $1;
+           my $deptree = $2;
+           push @{$crossdeps{$deptree} }, $name;
+    }
+  }
+  return %crossdeps;
+}
+
+# Drop cross dependencies
+# cross dependencies match somthing like this: package(whatever)
+sub drop_crossdeps {
+  my (@deps) = @_;
+  @deps = grep {!/^.*\(.*\)$/} @deps;
   return @deps;
 }
 
@@ -398,16 +427,19 @@ sub get_deps {
   push @deps, @{$config->{'required(target)'}}; # CROSSBUILD: handle target deps
   @deps = grep {!$ndeps{"-$_"}} @deps;
   @deps = do_subst($config, @deps);
+  # cross dependency handling needs to be done after substituation
+  # and before dependency expand.
+  my %crossdeps = extract_crossdeps(@deps);
+  @deps = drop_crossdeps(@deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
   my %bdeps = map {$_ => 1} (@{$config->{'preinstall'}}, @{$config->{'support'}});
   delete $bdeps{$_} for @deps;
-  @deps = expand($config, @deps, @ndeps);
-  if (@deps && $deps[0]) {
-    my $r = shift @deps;
+  my $eok;
+  ($eok, @deps) = expand($config, @deps, @ndeps);
+  if (@deps && $eok) {
     @deps = grep {!$bdeps{$_}} @deps;
-    unshift @deps, $r;
   }
-  return @deps;
+  return ($eok, \@deps, \%crossdeps);
 }
 
 sub get_preinstalls {
