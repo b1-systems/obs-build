@@ -196,6 +196,8 @@ sub read_config {
   $config->{'fileprovides'} = {};
   $config->{'sysroots'} = [];
   $config->{'crossbuild'} = 0;
+  $config->{'hostsysroot'} = '';
+  $config->{'targetsysroot'} = '';
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
     next unless defined $l;
@@ -283,6 +285,10 @@ sub read_config {
       push @{$config->{'sysroots'}}, { 'alias' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
     } elsif ($l0 eq 'crossbuild:') {
       $config->{'crossbuild'} = $l[0];
+    } elsif ($l0 eq 'hostsysroot:') {
+      $config->{'hostsysroot'} = $l[0];
+    } elsif ($l0 eq'targetsysroot:') {
+      $config->{'targetsysroot'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
@@ -477,6 +483,15 @@ sub get_sysroots {
   return @{$config->{'sysroots'}};
 }
 
+sub get_hostsysroot {
+  my ($config) = @_;
+  return $config->{'hostsysroot'};
+}
+
+sub get_targetsysroot {
+  my ($config) = @_;
+  return $config->{'targetsysroot'};
+}
 
 
 ###########################################################################
