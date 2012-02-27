@@ -392,7 +392,7 @@ sub get_build {
   # and before dependency expand.
   my %crossdeps = extract_crossdeps(@deps);
   @deps = drop_crossdeps(@deps);
-  @deps = expand($config, @deps, @ndeps);
+  ($eok, @deps) = expand($config, @deps, @ndeps);
   return ($eok, \@deps, \%crossdeps);
 }
 
