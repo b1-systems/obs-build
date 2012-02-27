@@ -194,7 +194,8 @@ sub read_config {
   $config->{'repotype'} = [];
   $config->{'patterntype'} = [];
   $config->{'fileprovides'} = {};
-  $config->{'additionalarchs'} = [];
+  $config->{'sysroots'} = [];
+  $config->{'crossbuild'} = 0;
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
     next unless defined $l;
@@ -278,8 +279,10 @@ sub read_config {
       $config->{'target'} = join(' ', @l);
     } elsif ($l0 eq 'hostarch:') {
       $config->{'hostarch'} = join(' ', @l);
-    } elsif ($l0 eq 'additionalarch:') {
-      push @{$config->{'additionalarchs'}}, { arch => $l[0], sysroot => ( $l[1] || '' ) };
+    } elsif ($l0 eq 'sysroot:') {
+      push @{$config->{'sysroots'}}, { 'alias' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
+    } elsif ($l0 eq 'crossbuild:') {
+      $config->{'crossbuild'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
@@ -437,9 +440,9 @@ sub get_crossbuild {
   return $config->{'crossbuild'};
 }
 
-sub get_additional_archs {
+sub get_sysroots {
   my ($config) = @_;
-  return @{$config->{'additionalarchs'}};
+  return @{$config->{'sysroots'}};
 }
 
 
