@@ -195,8 +195,6 @@ sub read_config {
   $config->{'patterntype'} = [];
   $config->{'fileprovides'} = {};
   $config->{'sysroot'} = [];
-  $config->{'crossbuild'} = 0;
-  $config->{'hostsysroot'} = '';
   $config->{'targetsysroot'} = '';
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
@@ -283,10 +281,6 @@ sub read_config {
       $config->{'hostarch'} = join(' ', @l);
     } elsif ($l0 eq 'sysroot:') {
       push @{$config->{'sysroot'}}, { 'label' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
-    } elsif ($l0 eq 'crossbuild:') {
-      $config->{'crossbuild'} = $l[0];
-    } elsif ($l0 eq 'hostsysroot:') {
-      $config->{'hostsysroot'} = $l[0];
     } elsif ($l0 eq'targetsysroot:') {
       $config->{'targetsysroot'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
@@ -473,11 +467,6 @@ sub get_runscripts {
   return @{$config->{'runscripts'}};
 }
 
-sub get_crossbuild {
-  my ($config) = @_;
-  return $config->{'crossbuild'};
-}
-
 sub get_sysroots {
   my ($config) = @_;
   #drop sysroots with duplicate label.. first one wins..
@@ -492,11 +481,6 @@ sub get_sysroots {
   @sysroots = @tmp_sysroots;
 
   return @sysroots;
-}
-
-sub get_hostsysroot {
-  my ($config) = @_;
-  return $config->{'hostsysroot'};
 }
 
 sub get_targetsysroot {
