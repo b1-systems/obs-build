@@ -233,6 +233,7 @@ for my $line (@$xspec) {
   if ($isbuildrequires) {
     delete $f2{$_} for @neg;
     delete $f2{$_} for grep {/^-/} keys %f2;
+    delete $f2{$_} for grep {/^.*\(.*\)$/} keys %f2; # drop crossdeps
   }
   while (@deps) {
     my ($pack, $vers) = splice(@deps, 0, 2);
