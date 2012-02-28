@@ -1845,7 +1845,11 @@ for SPECFILE in "${SPECFILES[@]}" ; do
     fi
 
     if test "$BUILDTYPE" = spec ; then
-	TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
+	if [ -n "$CROSSBUILD" ]; then
+		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --root $BUILD_ROOT/$SYSROOT_TARGET --eval '%_topdir'" - $BUILD_USER`
+	else
+		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
+	fi
 	if test -z "$TOPDIR"; then
 	    echo "Error: TOPDIR empty"
 	    cleanup_and_exit 1
@@ -2063,6 +2067,11 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		rpmbopts[${#rpmbopts[@]}]='--define'
 		rpmbopts[${#rpmbopts[@]}]="RSYNCDONE 1"
 	fi
+	if [ -n "$CROSSBUILD" ] ; then
+		rpmbopts[${#rpmbopts[@]}]='--root'
+		rpmbopts[${#rpmbopts[@]}]="$BUILD_ROOT/$SYSROOT_TARGET"
+	fi
+
 
 	rpmbuild=rpmbuild
 
