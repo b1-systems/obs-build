@@ -480,7 +480,18 @@ sub get_crossbuild {
 
 sub get_sysroots {
   my ($config) = @_;
-  return @{$config->{'sysroot'}};
+  #drop sysroots with duplicate label.. first one wins..
+  my (@sysroots, @tmp_sysroots);
+  for my $sr (@{$config->{'sysroot'}}) {
+    push @sysroots, $sr if(!grep{$_->{'label'} eq $sr->{'label'}} @sysroots);
+  }
+  #drop sysroots with duplicate path, first one wins...
+  for my $sr (@sysroots) {
+    push @tmp_sysroots, $sr if(!grep{$_->{'path'} eq $sr->{'path'}} @tmp_sysroots);
+  }
+  @sysroots = @tmp_sysroots;
+
+  return @sysroots;
 }
 
 sub get_hostsysroot {
