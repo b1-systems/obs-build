@@ -466,6 +466,10 @@ sub get_runscripts {
   my ($config) = @_;
   return @{$config->{'runscripts'}};
 }
+sub get_supports {
+  my ($config) = @_;
+  return @{$config->{'support'}};
+}
 
 sub get_sysroots {
   my ($config) = @_;
