@@ -280,7 +280,11 @@ sub read_config {
     } elsif ($l0 eq 'hostarch:') {
       $config->{'hostarch'} = join(' ', @l);
     } elsif ($l0 eq 'sysroot:') {
-      push @{$config->{'sysroot'}}, { 'label' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
+      if (@l == 4) {
+        push @{$config->{'sysroot'}}, { 'label' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
+      } else {
+        warn("error in Sysroot: definition\n");
+      }
     } elsif ($l0 eq'targetsysroot:') {
       $config->{'targetsysroot'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
