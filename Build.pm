@@ -281,7 +281,7 @@ sub read_config {
       $config->{'hostarch'} = join(' ', @l);
     } elsif ($l0 eq 'sysroot:') {
       if (@l == 5) {
-        push @{$config->{'sysroot'}}, { 'label' => $l[0], 'project' => $l[1], 'repository' => $l[2], 'arch' => $l[3], 'path' => $l[4], };
+        push @{$config->{'sysroot'}}, { 'label' => $l[0], pathes => [ {'project' => $l[1], 'repository' => $l[2]} ], 'arch' => $l[3], 'path' => $l[4] , };
       } else {
         warn("error in Sysroot: definition\n");
       }
