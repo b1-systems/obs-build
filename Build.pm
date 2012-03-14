@@ -196,6 +196,20 @@ sub read_config {
   $config->{'fileprovides'} = {};
   $config->{'sysroot'} = [];
   $config->{'targetsysroot'} = '';
+  # remember removed packages for crossbuild
+  $config->{'nopreinstall'} = [];
+  $config->{'novminstall'} = [];
+  $config->{'nocbpreinstall'} = [];
+  $config->{'nocbinstall'} = [];
+  $config->{'norunscripts'} = [];
+  $config->{'norequired'} = [];
+  $config->{'norequired(target)'} = [];
+  $config->{'nosupport'} = [];
+  $config->{'nokeep'} = [];
+  $config->{'noprefer'} = [];
+  $config->{'noignore'} = [];
+  $config->{'noconflict'} = [];
+
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
     next unless defined $l;
@@ -219,6 +233,7 @@ sub read_config {
 	  $config->{$t} = [];
 	} elsif ($l =~ /^!/) {
 	  $config->{$t} = [ grep {"!$_" ne $l} @{$config->{$t}} ];
+    push @{$config->{'no'.$t}}, $l; # remember removed package 
 	} else {
 	  push @{$config->{$t}}, $l;
 	}
@@ -475,6 +490,11 @@ sub get_supports {
   my ($config) = @_;
   return @{$config->{'support'}};
 }
+sub get_nosupports {
+  my ($config) = @_;
+  return @{$config->{'nosupport'}};
+}
+
 
 sub get_required {
   my ($config) = @_;
