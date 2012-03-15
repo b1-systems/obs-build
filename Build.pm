@@ -235,7 +235,7 @@ sub read_config {
 	  $config->{$t} = [ grep {"!$_" ne $l} @{$config->{$t}} ];
           push @{$config->{'no'.$t}}, $l; # remember removed package 
 	} else {
-	  push @{$config->{$t}}, $l;
+          push @{$config->{$t}}, $l;
 	}
       }
     } elsif ($l0 eq 'substitute:') {
