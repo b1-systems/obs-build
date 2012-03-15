@@ -233,7 +233,7 @@ sub read_config {
 	  $config->{$t} = [];
 	} elsif ($l =~ /^!/) {
 	  $config->{$t} = [ grep {"!$_" ne $l} @{$config->{$t}} ];
-    push @{$config->{'no'.$t}}, $l; # remember removed package 
+          push @{$config->{'no'.$t}}, $l; # remember removed package 
 	} else {
 	  push @{$config->{$t}}, $l;
 	}
@@ -490,9 +490,20 @@ sub get_supports {
   my ($config) = @_;
   return @{$config->{'support'}};
 }
+
 sub get_nosupports {
-  my ($config) = @_;
-  return @{$config->{'nosupport'}};
+  my ($config, $sysrootlabel) = @_;
+  my @nosupports = [];
+
+  if ($sysrootlabel) {
+    my %nosupports = extract_crossdeps(@{$config->{'nosupport'}});
+    if (defined $nosupports{$sysrootlabel}) {
+      @nosupports = @{$nosupports{$sysrootlabel}};
+    }
+  } else {
+    @nosupports = @{$config->{'nosupports'}};
+  }
+  return @nosupports;
 }
 
 
