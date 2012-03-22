@@ -416,7 +416,7 @@ sub extract_crossdeps {
   my (@deps) = @_;
   my %crossdeps;
   for my $p (splice @deps) {
-    if (($p =~ /^(.*)\((.*)\)$/)) {
+    if (($p =~ /^(.*)\[(.*)\]$/)) {
            my $name = $1;
            my $deptree = $2;
            push @{$crossdeps{$deptree} }, $name;
