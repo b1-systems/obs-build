@@ -80,3 +80,16 @@ check_use_emulator()
     esac
     return 1
 }
+
+abs2rela_path() {
+        base=$1
+        target=$2
+
+        back=
+        while [ "${target#$base}" = "${target}" ]; do
+          base=$(dirname $base)
+          back="../${back}"
+        done
+        echo "${back}${target#$base/}"
+}
+

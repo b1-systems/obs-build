@@ -1953,7 +1953,12 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	fi
 	if test $BUILD_USER = abuild; then
 		cp -p $BUILD_ROOT/root/.rpmmacros $BUILD_ROOT/home/abuild/.rpmmacros
-		ln -s ../../../home/abuild/ $BUILD_ROOT/$SYSROOT_TARGET/home/abuild
+
+		if [ -n "$CROSSBUILD" ]; then
+			# required due to rpmbuild --root $SYSROOT_TARGET
+			RELA_PATH=$( abs2rela_path $BUILD_ROOT/$SYSROOT_TARGET/home/abuild $BUILD_ROOT )
+			ln -s $RELA_PATH $BUILD_ROOT/$SYSROOT_TARGET/home/abuild
+		fi
 	fi
 	# extract optflags from configuration
 	getoptflags --dist "$BUILD_DIST" --configdir "$BUILD_DIR/configs" --archpath "$BUILD_ARCH" ${BUILD_DEBUG:+--debug} > $BUILD_ROOT/root/.rpmrc
