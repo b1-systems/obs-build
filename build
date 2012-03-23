@@ -1855,7 +1855,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 
     if test "$BUILDTYPE" = spec ; then
 	if [ -n "$CROSSBUILD" ]; then
-		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --root $BUILD_ROOT/$SYSROOT_TARGET --eval '%_topdir'" - $BUILD_USER`
+		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --root /$SYSROOT_TARGET --eval '%_topdir'" - $BUILD_USER`
 	else
 		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
 	fi
@@ -1950,7 +1950,10 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		%_smp_mflags -j$BUILD_JOBS
 		EOF
 	fi
-	test $BUILD_USER = abuild && cp -p $BUILD_ROOT/root/.rpmmacros $BUILD_ROOT/home/abuild/.rpmmacros
+	if test $BUILD_USER = abuild; then
+		cp -p $BUILD_ROOT/root/.rpmmacros $BUILD_ROOT/home/abuild/.rpmmacros
+		ln -s ../../../home/abuild/ $BUILD_ROOT/$SYSROOT_TARGET/home/abuild
+	fi
 	# extract optflags from configuration
 	getoptflags --dist "$BUILD_DIST" --configdir "$BUILD_DIR/configs" --archpath "$BUILD_ARCH" ${BUILD_DEBUG:+--debug} > $BUILD_ROOT/root/.rpmrc
 	test $BUILD_USER = abuild && cp -p $BUILD_ROOT/root/.rpmrc $BUILD_ROOT/home/abuild/.rpmrc
@@ -2077,6 +2080,9 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		rpmbopts[${#rpmbopts[@]}]="RSYNCDONE 1"
 	fi
 	if [ -n "$CROSSBUILD" ] ; then
+		rpmbopts[${#rpmbopts[@]}]='--root'
+		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET"
+
 		rpmbopts[${#rpmbopts[@]}]='--dbpath'
 		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET/var/lib/rpm"
 	fi
