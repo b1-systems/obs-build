@@ -1957,6 +1957,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		if [ -n "$CROSSBUILD" ]; then
 			# required due to rpmbuild --root $SYSROOT_TARGET
 			RELA_PATH=$( abs2rela_path $BUILD_ROOT/$SYSROOT_TARGET/home/abuild $BUILD_ROOT/home/abuild )
+			mkdir -p $BUILD_ROOT/$SYSROOT_TARGET/home
 			ln -s $RELA_PATH $BUILD_ROOT/$SYSROOT_TARGET/home/abuild
 		fi
 	fi
