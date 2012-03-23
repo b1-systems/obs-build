@@ -1510,6 +1510,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		BUILD_DIST=/.build/build.dist
 		;;
 	esac
+        echo "SYSROOTS='${SYSROOTS}'" >> $BUILD_ROOT/.build/build.data
         echo "ABUILD_TARGET='${ABUILD_TARGET}'" >> $BUILD_ROOT/.build/build.data
         echo "ABUILD_INIT_WITH_IGNORE_ARCH='${ABUILD_INIT_WITH_IGNORE_ARCH}'" >> $BUILD_ROOT/.build/build.data
 	echo "BUILD_DIST='${BUILD_DIST//"'"/$Q}'" >> $BUILD_ROOT/.build/build.data
