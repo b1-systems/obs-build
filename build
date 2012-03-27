@@ -2098,6 +2098,9 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		rpmbopts[${#rpmbopts[@]}]='--root'
 		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET"
 
+                rpmbopts[${#rpmbopts[@]}]='--buildroot'
+                rpmbopts[${#rpmbopts[@]}]="/$TOPDIR/BUILDROOT"
+ 
 		rpmbopts[${#rpmbopts[@]}]='--dbpath'
 		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET/var/lib/rpm"
 	fi
