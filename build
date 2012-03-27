@@ -1856,6 +1856,10 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 
     if test "$BUILDTYPE" = spec ; then
 	if [ -n "$CROSSBUILD" ]; then
+                # required for rpmbuild with --root parameter
+                mkdir -p $BUILD_ROOT/$SYSROOT_TARGET/var/tmp
+                chmod 777 $BUILD_ROOT/$SYSROOT_TARGET/var/tmp
+
 		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --root /$SYSROOT_TARGET --eval '%_topdir'" - $BUILD_USER`
 	else
 		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
