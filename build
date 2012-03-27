@@ -1949,6 +1949,10 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 ' >> $BUILD_ROOT/root/.rpmmacros
 	fi
 
+        if [ -n "$CROSSBUILD" ]; then
+               echo "%__check_files %{_rpmconfigdir}/check-files $SYSROOT_TARGET%{buildroot}" >> $BUILD_ROOT/root/.rpmmacros
+       fi
+
 	if [ -n "$BUILD_JOBS" ]; then
 		cat >> $BUILD_ROOT/root/.rpmmacros <<-EOF
 		%jobs $BUILD_JOBS
