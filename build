@@ -2190,6 +2190,14 @@ if test -n "$RPMS" -a -d "$BUILD_ROOT/usr/lib/build/checks" ; then
 	test -f "$SRPM" && PNAME=`rpm --nodigest --nosignature -qp --qf "%{NAME}" $SRPM`
     done
     for CHECKSCRIPT in $BUILD_ROOT/usr/lib/build/checks/* ; do
+         # [CROSSBUILD] FIXME: Disable some of the post checks which will not work for crossbuilds out-of-the-box -gollub
+         if [  -n "$CROSSBUILD" ]; then
+                if [ "`basename $CHECKSCRIPT`" = "06-check-installtest" ]; then
+                        echo "... (CROSSBUILD) skipping `basename $CHECKSCRIPT`"
+                        continue;
+                fi;
+        fi;
+
 	echo "... running `basename $CHECKSCRIPT`"
 	$CHECKSCRIPT || cleanup_and_exit 1
     done
