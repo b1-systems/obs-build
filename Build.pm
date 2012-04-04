@@ -370,14 +370,14 @@ print __LINE__, " config: ", print $config, "\n";;
 }
 
 sub do_subst_vers {
-  my ($config, @deps) = @_;
+  my ($config, $subst_crossdeps, @deps) = @_;
   my @res;
   my %done;
   my $subst = $config->{'substitute_vers'};
   while (@deps) {
     my ($d, $dv) = splice(@deps, 0, 2);
     next if $done{$d};
-    if ($subst->{$d}) {
+    if ($subst->{$d} && defined $subst_crossdeps && $subst_crossdeps) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
     } else {

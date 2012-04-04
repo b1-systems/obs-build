@@ -228,7 +228,7 @@ for my $line (@$xspec) {
   my @deps = $r =~ /([^\s\[,]+)(\s+[<=>]+\s+[^\s\[,]+)?[\s,]*/g;
   my @ndeps = ();
   my $replace = 0;
-  my @f2 = Build::do_subst_vers($cf, @deps);
+  my @f2 = Build::do_subst_vers($cf, $isbuildrequires, @deps);
   my %f2 = @f2;
   if ($isbuildrequires) {
     delete $f2{$_} for @neg;
