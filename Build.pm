@@ -348,6 +348,10 @@ sub do_subst {
   my ($config, @deps) = @_;
   my @res;
   my %done;
+print __LINE__, " do_subst\n";
+print __LINE__, " config: ", print $config, "\n";;
+
+
   my $subst = $config->{'substitute'};
   while (@deps) {
     my $d = shift @deps;
@@ -403,9 +407,15 @@ sub get_build {
   @deps = grep {!$ndeps{"-$_"}} @deps;
   # cross dependency handling needs to be done after substituation
   # and before dependency expand.
+my $config_bak = $config;
   my %crossdeps = extract_crossdeps(@deps);
   @deps = drop_crossdeps(@deps);
   ($eok, @deps) = expand($config, @deps, @ndeps);
+  if($eok) {
+    ($eok, @deps) = do_subst($config_bak, @deps); 
+    %crossdeps = (%crossdeps, extract_crossdeps(@deps));
+    @deps = drop_crossdeps(@deps);
+  }
   return ($eok, \@deps, \%crossdeps);
 }
 
@@ -454,7 +464,13 @@ sub get_deps {
   my %bdeps = map {$_ => 1} (@{$config->{'preinstall'}}, @{$config->{'support'}});
   delete $bdeps{$_} for @deps;
   my $eok;
+my $config_bak = $config;
   ($eok, @deps) = expand($config, @deps, @ndeps);
+  if($eok) {
+    ($eok, @deps) = do_subst($config_bak, @deps); 
+    %crossdeps = (%crossdeps, extract_crossdeps(@deps));
+    @deps = drop_crossdeps(@deps);
+  }
   if (@deps && $eok) {
     @deps = grep {!$bdeps{$_}} @deps;
   }
