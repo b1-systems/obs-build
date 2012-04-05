@@ -467,7 +467,7 @@ sub get_deps {
 my $config_bak = $config;
   ($eok, @deps) = expand($config, @deps, @ndeps);
   if($eok) {
-    ($eok, @deps) = do_subst($config_bak, @deps); 
+    @deps = do_subst($config_bak, @deps); 
     %crossdeps = (%crossdeps, extract_crossdeps(@deps));
     @deps = drop_crossdeps(@deps);
   }
