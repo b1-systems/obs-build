@@ -177,7 +177,6 @@ sub read_config {
   $config->{'cbinstall'} = [];
   $config->{'runscripts'} = [];
   $config->{'required'} = [];
-  $config->{'required(target)'} = [];
   $config->{'support'} = [];
   $config->{'keep'} = [];
   $config->{'prefer'} = [];
@@ -228,7 +227,7 @@ sub read_config {
       }
       next;
     }
-    if ($l0 eq 'preinstall:' || $l0 eq 'vminstall:' || $l0 eq 'cbpreinstall:' || $l0 eq 'cbinstall:' || $l0 eq 'required:' || $l0 eq 'support:' || $l0 eq 'keep:' || $l0 eq 'prefer:' || $l0 eq 'ignore:' || $l0 eq 'conflict:' || $l0 eq 'runscripts:' || $l0 eq 'required(target):') {
+    if ($l0 eq 'preinstall:' || $l0 eq 'vminstall:' || $l0 eq 'cbpreinstall:' || $l0 eq 'cbinstall:' || $l0 eq 'required:' || $l0 eq 'support:' || $l0 eq 'keep:' || $l0 eq 'prefer:' || $l0 eq 'ignore:' || $l0 eq 'conflict:' || $l0 eq 'runscripts:') {
       my $t = substr($l0, 0, -1);
       for my $l (@l) {
 	if ($l eq '!*') {
@@ -312,7 +311,7 @@ sub read_config {
       warn("unknown keyword in config: $l0\n");
     }
   }
-  for my $l (qw{preinstall vminstall cbpreinstall cbinstall required required(target) support keep runscripts repotype patterntype}) {
+  for my $l (qw{preinstall vminstall cbpreinstall cbinstall required support keep runscripts repotype patterntype}) {
     $config->{$l} = [ unify(@{$config->{$l}}) ];
   }
   for my $l (keys %{$config->{'substitute'}}) {
@@ -401,7 +400,6 @@ sub get_build {
   @deps = grep {!$ndeps{$_}} @deps;
   push @deps, @{$config->{'preinstall'}};
   push @deps, @{$config->{'required'}};
-  push @deps, @{$config->{'required(target)'}}; # CROSSBUILD: handle target deps
   push @deps, @{$config->{'support'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
   my $eok;
@@ -449,7 +447,6 @@ sub get_deps {
   my %ndeps = map {$_ => 1} @ndeps;
   @deps = grep {!$ndeps{$_}} @deps;
   push @deps, @{$config->{'required'}};
-  push @deps, @{$config->{'required(target)'}}; # CROSSBUILD: handle target deps
   @deps = grep {!$ndeps{"-$_"}} @deps;
   @deps = do_subst($config, @deps);
   # cross dependency handling needs to be done after substituation
