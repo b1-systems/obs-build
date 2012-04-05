@@ -249,7 +249,7 @@ sub read_config {
 	$config->{'substitute'}->{$ll} = [ @l ];
         if (grep { /^.*\[.*\].*$/ } @l)
         {
-          push @{$config->{'crosssubst'}}, $l[0];
+          push @{$config->{'crosssubst'}}, $ll;
         }
       }
     } elsif ($l0 eq 'fileprovides:') {
