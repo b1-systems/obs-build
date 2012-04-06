@@ -102,3 +102,15 @@ progress_step() {
     local LEN=$1__LENGTH__
     printf "${2-[%d/%d] }" $(($IDX++)) ${!LEN}
 }
+
+abs2rela_path() {
+        base=$1
+        target=$2
+
+        back=
+        while [ "${target#$base}" = "${target}" ]; do
+          base=$(dirname $base)
+          back="../${back}"
+        done
+        echo "${back}${target#$base/}"
+}

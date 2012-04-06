@@ -73,6 +73,9 @@ VMDISK_MOUNT_OPTIONS=__default
 MEMSIZE=
 RUNNING_IN_VM=
 RPMLIST=
+CROSSBUILD=
+SYSROOTS=
+SYSROOT_TARGET=
 RELEASE=
 REASON=
 NOROOTFORBUILD=
@@ -576,6 +579,7 @@ detect_vm_2nd_stage()
     BUILD_ROOT=/
     BUILD_DIR=/.build
     . $BUILD_DIR/build.data
+    export ABUILD_INIT_WITH_IGNORE_ARCH;
     echo "machine type: `uname -m`"
     if test "$PERSONALITY" != 0 -a -z "$PERSONALITY_SET" ; then
 	export PERSONALITY_SET=true
@@ -687,6 +691,30 @@ mkdir_build_root()
        rm -rf "$BUILD_ROOT"/.build
        mkdir -p "$BUILD_ROOT"/.build
     fi
+}
+
+setup_sys_root()
+{
+	for SYSROOT in $SYSROOTS; do
+		local SYSROOT_PATH=${SYSROOT%%:*}
+		local SYSROOT_RPMS=${SYSROOT##*:}
+
+		test -n "$SYSROOT_PATH" || continue
+		test -n "$SYSROOT_RPMS" || continue
+
+		mkdir -p $BUILD_ROOT/$SYSROOT_PATH || fail_exit
+
+		BUILD_ROOT=$BUILD_ROOT/$SYSROOT_PATH CROSSBUILD=1 init_buildsystem --rpmlist $SYSROOT_RPMS "$MYSRCDIR/$SPECFILE"
+		ERR=$?
+		#TODO: make proper error handling
+
+
+		# fix orphaned absolute path symlinks in sysroot environment
+		for LINK in $(find $BUILD_ROOT/$SYSROOT_PATH -type l); do
+			local TARGET=$(readlink $LINK)
+			[[ $TARGET == /* ]] && ln -fs /$SYSROOT_PATH$TARGET $LINK
+		done
+	done
 }
 
 linux64()
@@ -814,7 +842,7 @@ while test -n "$1"; do
       *-verify)
 	export VERIFY_BUILD_SYSTEM=true
       ;;
-      *-target)
+      --target)
 	needarg
 	ABUILD_TARGET="$ARG"
 	shift
@@ -857,6 +885,9 @@ while test -n "$1"; do
 	needarg
 	BUILD_DIST="$ARG"
 	shift
+      ;;
+      --crossbuild)
+        CROSSBUILD=1;
       ;;
       *-xen|*-kvm|--uml|--qemu)
 	VM_TYPE=${PARAM##*-}
@@ -935,6 +966,16 @@ while test -n "$1"; do
 	needarg
 	RPMLIST="--rpmlist $ARG"
 	BUILD_RPMS=
+	shift
+      ;;
+      --sysroot)
+	needarg
+	SYSROOTS="$SYSROOTS $ARG"
+	shift
+      ;;
+      --sysroot-target)
+	needarg
+        SYSROOT_TARGET="$ARG"
 	shift
       ;;
       *-release)
@@ -1054,6 +1095,8 @@ while test -n "$1"; do
       ;;
     esac
 done
+
+test -n "$CROSSBUILD" && export ABUILD_INIT_WITH_IGNORE_ARCH=true # required for 00-check-install-rpms
 
 check_for_ppc
 
@@ -1343,6 +1386,7 @@ if [ -z "$RUNNING_IN_VM" ]; then
     test -n "$BUILD_RPMS" && echo Using BUILD_RPMS=$BUILD_RPMS
     echo Using BUILD_ARCH=$BUILD_ARCH
     test -n "$VM_TYPE" && echo "Doing $VM_TYPE build${VM_IMAGE:+ in $VM_IMAGE}"
+    test -n "$CROSSBUILD" && echo "Doing crossbuild on $BUILD_ARCH for $ABUILD_TARGET"
     echo
 fi
 
@@ -1480,6 +1524,9 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		BUILD_DIST=/.build/build.dist
 		;;
 	esac
+        echo "SYSROOTS='${SYSROOTS}'" >> $BUILD_ROOT/.build/build.data
+        echo "ABUILD_TARGET='${ABUILD_TARGET}'" >> $BUILD_ROOT/.build/build.data
+        echo "ABUILD_INIT_WITH_IGNORE_ARCH='${ABUILD_INIT_WITH_IGNORE_ARCH}'" >> $BUILD_ROOT/.build/build.data
 	echo "BUILD_DIST='${BUILD_DIST//"'"/$Q}'" >> $BUILD_ROOT/.build/build.data
 	echo "RELEASE='${RELEASE//"'"/$Q}'" >> $BUILD_ROOT/.build/build.data
 	echo "BUILD_DEBUG='${BUILD_DEBUG//"'"/$Q}'" >> $BUILD_ROOT/.build/build.data
@@ -1739,6 +1786,9 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	read BUILD_DIST < $BUILD_ROOT/.guessed_dist
     fi
 
+    # setup sys-root environment for cross compiling builds
+    setup_sys_root
+
     #
     # fix rpmrc if we are compiling for i686
     #
@@ -1823,7 +1873,15 @@ for SPECFILE in "${SPECFILES[@]}" ; do
     fi
 
     if test "$BUILDTYPE" = spec ; then
-	TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
+	if [ -n "$CROSSBUILD" ]; then
+                # required for rpmbuild with --root parameter
+                mkdir -p $BUILD_ROOT/$SYSROOT_TARGET/var/tmp
+                chmod 1777 $BUILD_ROOT/$SYSROOT_TARGET/var/tmp
+
+		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --root /$SYSROOT_TARGET --eval '%_topdir'" - $BUILD_USER`
+	else
+		TOPDIR=`chroot $BUILD_ROOT su -c "rpm --eval '%_topdir'" - $BUILD_USER`
+	fi
 	if test -z "$TOPDIR"; then
 	    echo "Error: TOPDIR empty"
 	    cleanup_and_exit 1
@@ -1909,13 +1967,26 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 ' >> $BUILD_ROOT/root/.rpmmacros
 	fi
 
+        if [ -n "$CROSSBUILD" ]; then
+               echo "%__check_files %{_rpmconfigdir}/check-files $SYSROOT_TARGET%{buildroot}" >> $BUILD_ROOT/root/.rpmmacros
+       fi
+
 	if [ -n "$BUILD_JOBS" ]; then
 		cat >> $BUILD_ROOT/root/.rpmmacros <<-EOF
 		%jobs $BUILD_JOBS
 		%_smp_mflags -j$BUILD_JOBS
 		EOF
 	fi
-	test $BUILD_USER = abuild && cp -p $BUILD_ROOT/root/.rpmmacros $BUILD_ROOT/home/abuild/.rpmmacros
+	if test $BUILD_USER = abuild; then
+		cp -p $BUILD_ROOT/root/.rpmmacros $BUILD_ROOT/home/abuild/.rpmmacros
+
+		if [ -n "$CROSSBUILD" ]; then
+			# required due to rpmbuild --root $SYSROOT_TARGET
+			RELA_PATH=$( abs2rela_path $BUILD_ROOT/$SYSROOT_TARGET/home/abuild $BUILD_ROOT/home/abuild )
+			mkdir -p $BUILD_ROOT/$SYSROOT_TARGET/home
+			ln -s $RELA_PATH $BUILD_ROOT/$SYSROOT_TARGET/home/abuild
+		fi
+	fi
 	# extract optflags from configuration
 	getoptflags --dist "$BUILD_DIST" --configdir "$BUILD_DIR/configs" --archpath "$BUILD_ARCH" ${BUILD_DEBUG:+--debug} > $BUILD_ROOT/root/.rpmrc
 	test $BUILD_USER = abuild && cp -p $BUILD_ROOT/root/.rpmrc $BUILD_ROOT/home/abuild/.rpmrc
@@ -2054,6 +2125,16 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		rpmbopts[${#rpmbopts[@]}]='--define'
 		rpmbopts[${#rpmbopts[@]}]="RSYNCDONE 1"
 	fi
+	if [ -n "$CROSSBUILD" ] ; then
+		rpmbopts[${#rpmbopts[@]}]='--root'
+		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET"
+
+                rpmbopts[${#rpmbopts[@]}]='--buildroot'
+                rpmbopts[${#rpmbopts[@]}]="/$TOPDIR/BUILDROOT"
+ 
+		rpmbopts[${#rpmbopts[@]}]='--dbpath'
+		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET/var/lib/rpm"
+	fi
 
 	# su involves a shell which would require even more
 	# complicated quoting to bypass than this
@@ -2145,6 +2226,14 @@ if test -n "$RPMS" -a -d "$BUILD_ROOT/usr/lib/build/checks" ; then
 	test -f "$SRPM" && PNAME=`rpm --nodigest --nosignature -qp --qf "%{NAME}" $SRPM`
     done
     for CHECKSCRIPT in $BUILD_ROOT/usr/lib/build/checks/* ; do
+         # [CROSSBUILD] FIXME: Disable some of the post checks which will not work for crossbuilds out-of-the-box -gollub
+         if [  -n "$CROSSBUILD" ]; then
+                if [ "`basename $CHECKSCRIPT`" = "06-check-installtest" ]; then
+                        echo "... (CROSSBUILD) skipping `basename $CHECKSCRIPT`"
+                        continue;
+                fi;
+        fi;
+
 	echo "... running `basename $CHECKSCRIPT`"
 	$CHECKSCRIPT || cleanup_and_exit 1
     done

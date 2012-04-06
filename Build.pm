@@ -198,6 +198,23 @@ sub read_config {
   $config->{'repotype'} = [];
   $config->{'patterntype'} = [];
   $config->{'fileprovides'} = {};
+  $config->{'sysroot'} = [];
+  $config->{'targetsysroot'} = '';
+  # remember removed packages for crossbuild
+  $config->{'nopreinstall'} = [];
+  $config->{'novminstall'} = [];
+  $config->{'nocbpreinstall'} = [];
+  $config->{'nocbinstall'} = [];
+  $config->{'norunscripts'} = [];
+  $config->{'norequired'} = [];
+  $config->{'nosupport'} = [];
+  $config->{'nokeep'} = [];
+  $config->{'noprefer'} = [];
+  $config->{'noignore'} = [];
+  $config->{'noconflict'} = [];
+  # array with package that will get cross substituted
+  $config->{'crosssubst'} = [];
+
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
     next unless defined $l;
@@ -221,8 +238,9 @@ sub read_config {
 	  $config->{$t} = [];
 	} elsif ($l =~ /^!/) {
 	  $config->{$t} = [ grep {"!$_" ne $l} @{$config->{$t}} ];
+          push @{$config->{'no'.$t}}, $l; # remember removed package 
 	} else {
-	  push @{$config->{$t}}, $l;
+          push @{$config->{$t}}, $l;
 	}
       }
     } elsif ($l0 eq 'substitute:') {
@@ -234,6 +252,10 @@ sub read_config {
 	delete $config->{'substitute'}->{$1};
       } else {
 	$config->{'substitute'}->{$ll} = [ @l ];
+        if (grep { /^.*\[.*\].*$/ } @l)
+        {
+          push @{$config->{'crosssubst'}}, $ll;
+        }
       }
     } elsif ($l0 eq 'fileprovides:') {
       next unless @l;
@@ -281,6 +303,14 @@ sub read_config {
       $config->{'target'} = join(' ', @l);
     } elsif ($l0 eq 'hostarch:') {
       $config->{'hostarch'} = join(' ', @l);
+    } elsif ($l0 eq 'sysroot:') {
+      if (@l == 5) {
+        push @{$config->{'sysroot'}}, { 'label' => $l[0], paths => [ {'project' => $l[1], 'repository' => $l[2]} ], 'arch' => $l[3], 'path' => $l[4] , };
+      } else {
+        warn("error in Sysroot: definition\n");
+      }
+    } elsif ($l0 eq'targetsysroot:') {
+      $config->{'targetsysroot'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
@@ -347,14 +377,14 @@ sub do_subst {
 }
 
 sub do_subst_vers {
-  my ($config, @deps) = @_;
+  my ($config, $subst_crossdeps, @deps) = @_;
   my @res;
   my %done;
   my $subst = $config->{'substitute_vers'};
   while (@deps) {
     my ($d, $dv) = splice(@deps, 0, 2);
     next if $done{$d};
-    if ($subst->{$d}) {
+    if ($subst->{$d} && defined $subst_crossdeps && $subst_crossdeps) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
     } else {
@@ -378,9 +408,38 @@ sub get_build {
   push @deps, @{$config->{'required'}};
   push @deps, @{$config->{'support'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
-  @deps = do_subst($config, @deps);
+  my $eok;
+  ($eok, @deps) = do_subst($config, @deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
-  @deps = expand($config, @deps, @ndeps);
+  # cross dependency handling needs to be done after substituation
+  # and before dependency expand.
+  my %crossdeps = extract_crossdeps(@deps);
+  @deps = drop_crossdeps(@deps);
+  ($eok, @deps) = expand($config, @deps, @ndeps);
+  return ($eok, \@deps, \%crossdeps);
+}
+
+
+# Extract cross dependencies
+# returns a hash with the sysroot-label as key and the package-name/-id as value
+sub extract_crossdeps {
+  my (@deps) = @_;
+  my %crossdeps;
+  for my $p (splice @deps) {
+    if (($p =~ /^(.*)\[(.*)\]$/)) {
+           my $name = $1;
+           my $deptree = $2;
+           push @{$crossdeps{$deptree} }, $name;
+    }
+  }
+  return %crossdeps;
+}
+
+# Drop cross dependencies
+# cross dependencies match somthing like this: package(whatever)
+sub drop_crossdeps {
+  my (@deps) = @_;
+  @deps = grep {!/^.*\[.*\]$/} @deps;
   return @deps;
 }
 
@@ -396,16 +455,19 @@ sub get_deps {
   push @deps, @{$config->{'required'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
   @deps = do_subst($config, @deps);
+  # cross dependency handling needs to be done after substituation
+  # and before dependency expand.
+  my %crossdeps = extract_crossdeps(@deps);
+  @deps = drop_crossdeps(@deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
   my %bdeps = map {$_ => 1} (@{$config->{'preinstall'}}, @{$config->{'support'}});
   delete $bdeps{$_} for @deps;
-  @deps = expand($config, @deps, @ndeps);
-  if (@deps && $deps[0]) {
-    my $r = shift @deps;
+  my $eok;
+  ($eok, @deps) = expand($config, @deps, @ndeps);
+  if (@deps && $eok) {
     @deps = grep {!$bdeps{$_}} @deps;
-    unshift @deps, $r;
   }
-  return @deps;
+  return ($eok, \@deps, \%crossdeps);
 }
 
 sub get_preinstalls {
@@ -431,6 +493,58 @@ sub get_cbinstalls {
 sub get_runscripts {
   my ($config) = @_;
   return @{$config->{'runscripts'}};
+}
+
+sub get_supports {
+  my ($config) = @_;
+  return @{$config->{'support'}};
+}
+
+sub get_nosupports {
+  my ($config, $sysrootlabel) = @_;
+  my @nosupports = [];
+
+  if ($sysrootlabel) {
+    my %nosupports = extract_crossdeps(@{$config->{'nosupport'}});
+    if (defined $nosupports{$sysrootlabel}) {
+      @nosupports = @{$nosupports{$sysrootlabel}};
+    }
+  } else {
+    @nosupports = @{$config->{'nosupports'}};
+  }
+  return @nosupports;
+}
+
+
+sub get_required {
+  my ($config) = @_;
+  return @{$config->{'required'}};
+}
+
+sub get_sysroots {
+  my ($config) = @_;
+  #drop sysroots with duplicate label.. first one wins..
+  my (@sysroots, @tmp_sysroots);
+  for my $sr (@{$config->{'sysroot'}}) {
+    push @sysroots, $sr if(!grep{$_->{'label'} eq $sr->{'label'}} @sysroots);
+  }
+  #drop sysroots with duplicate path, first one wins...
+  for my $sr (@sysroots) {
+    push @tmp_sysroots, $sr if(!grep{$_->{'path'} eq $sr->{'path'}} @tmp_sysroots);
+  }
+  @sysroots = @tmp_sysroots;
+
+  return @sysroots;
+}
+
+sub get_targetsysroot {
+  my ($config) = @_;
+  return $config->{'targetsysroot'};
+}
+
+sub get_crosssubst {
+  my ($config) = @_;
+  return $config->{'crosssubst'};
 }
 
 ###########################################################################
