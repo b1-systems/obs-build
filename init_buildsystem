@@ -35,6 +35,8 @@ RPMIDFMT="%{NAME}-%{VERSION}-%{RELEASE} %{BUILDTIME}\n"
 
 CALLRPM="chroot $BUILD_ROOT rpm";
 [ -n "$CROSSBUILD" ] && CALLRPM="rpm --root $BUILD_ROOT";
+# FIXME: workaround for not working mix of chroot rpm calls and rpm --root calls
+CALLRPM="rpm --root $BUILD_ROOT";
 
 PREPARE_VM=
 USEUSEDFORBUILD=
