@@ -1163,6 +1163,8 @@ for FILE in /var/run/utmp /var/log/wtmp /etc/fstab ; do
     touch $BUILD_ROOT/$FILE
 done
 
+# XXX: This non-CROSSBUILD conditional might be dropped later again once we have
+#      full tested QEMU mix with class-crossbuild.
 if [ -z "$CROSSBUILD" ]; then
    echo now finalizing build dir...
    CHROOT_RETURN="`chroot $BUILD_ROOT /sbin/ldconfig 2>&1`"
