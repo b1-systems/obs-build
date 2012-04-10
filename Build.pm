@@ -384,6 +384,8 @@ sub do_subst_vers {
   while (@deps) {
     my ($d, $dv) = splice(@deps, 0, 2);
     next if $done{$d};
+    # FIXME: perform substitutes if $d is is not a cross-subst even if $subst_crossdeps==0
+    # Currently this does not perform versioned substitution if $subst_crossdeps is set.
     if ($subst->{$d} && defined $subst_crossdeps && $subst_crossdeps) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
