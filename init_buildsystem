@@ -165,8 +165,8 @@ preinstall()
 	    rpm2cpio "$BUILD_ROOT/.init_b_cache/rpms/$1.rpm" | $PAYLOADDECOMPRESS | $CPIO
 	fi
 	if test -e ".init_b_cache/scripts/$1.run" ; then
-	    rpm --root $BUILD_ROOT -qp --nodigest --nosignature --qf "%{PREIN}" "$BUILD_ROOT/.init_b_cache/rpms/$1.rpm" > ".init_b_cache/scripts/$1.pre"
-	    rpm --root $BUILD_ROOT -qp --nodigest --nosignature --qf "%{POSTIN}" "$BUILD_ROOT/.init_b_cache/rpms/$1.rpm" > ".init_b_cache/scripts/$1.post"
+	    rpm -qp --nodigest --nosignature --qf "%{PREIN}" "$BUILD_ROOT/.init_b_cache/rpms/$1.rpm" > ".init_b_cache/scripts/$1.pre"
+	    rpm -qp --nodigest --nosignature --qf "%{POSTIN}" "$BUILD_ROOT/.init_b_cache/rpms/$1.rpm" > ".init_b_cache/scripts/$1.post"
 	    echo -n '(none)' > .init_b_cache/scripts/.none
 	    cmp -s ".init_b_cache/scripts/$1.pre" .init_b_cache/scripts/.none && rm -f ".init_b_cache/scripts/$1.pre"
 	    cmp -s ".init_b_cache/scripts/$1.post" .init_b_cache/scripts/.none && rm -f ".init_b_cache/scripts/$1.post"
