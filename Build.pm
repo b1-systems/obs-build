@@ -410,13 +410,13 @@ sub get_build {
   push @deps, @{$config->{'required'}};
   push @deps, @{$config->{'support'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
-  my $eok;
-  ($eok, @deps) = do_subst($config, @deps);
+  @deps = do_subst($config, @deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
   # cross dependency handling needs to be done after substituation
   # and before dependency expand.
   my %crossdeps = extract_crossdeps(@deps);
   @deps = drop_crossdeps(@deps);
+  my $eok;
   ($eok, @deps) = expand($config, @deps, @ndeps);
   return ($eok, \@deps, \%crossdeps);
 }
