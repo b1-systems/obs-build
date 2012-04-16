@@ -404,14 +404,17 @@ sub get_build {
   my $eok;
   ($eok, @deps) = do_subst($config, @deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
-  # cross dependency handling needs to be done after substituation
-  # and before dependency expand.
-  my %crossdeps = extract_crossdeps(@deps);
+  # cross dependency have to be dropped before dependency expand.
   @deps = drop_crossdeps(@deps);
   ($eok, @deps) = expand($config, @deps, @ndeps);
-  return ($eok, \@deps, \%crossdeps);
+  return ($eok, \@deps);
 }
 
+sub get_crossdeps {
+  my (@deps) = @_;
+  my %crossdeps = extract_crossdeps(@deps);
+  return (\%crossdeps)
+}
 
 # Extract cross dependencies
 # returns a hash with the sysroot-label as key and the package-name/-id as value
@@ -448,9 +451,7 @@ sub get_deps {
   push @deps, @{$config->{'required'}};
   @deps = grep {!$ndeps{"-$_"}} @deps;
   @deps = do_subst($config, @deps);
-  # cross dependency handling needs to be done after substituation
-  # and before dependency expand.
-  my %crossdeps = extract_crossdeps(@deps);
+  # cross dependency have to be dropped bevore expand
   @deps = drop_crossdeps(@deps);
   @deps = grep {!$ndeps{"-$_"}} @deps;
   my %bdeps = map {$_ => 1} (@{$config->{'preinstall'}}, @{$config->{'support'}});
@@ -460,7 +461,7 @@ sub get_deps {
   if (@deps && $eok) {
     @deps = grep {!$bdeps{$_}} @deps;
   }
-  return ($eok, \@deps, \%crossdeps);
+  return ($eok, \@deps);
 }
 
 sub get_preinstalls {
