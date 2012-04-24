@@ -2130,9 +2130,6 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	if [ -n "$CROSSBUILD" ] ; then
 		rpmbopts[${#rpmbopts[@]}]='--root'
 		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET"
-
-                rpmbopts[${#rpmbopts[@]}]='--buildroot'
-                rpmbopts[${#rpmbopts[@]}]="/$TOPDIR/BUILDROOT"
 	fi
 
 	# su involves a shell which would require even more
