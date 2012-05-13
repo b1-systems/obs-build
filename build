@@ -738,9 +738,14 @@ setup_sys_root()
 
 		mkdir -p $BUILD_ROOT/$SYSROOT_PATH || fail_exit
 
-		BUILD_ROOT=$BUILD_ROOT/$SYSROOT_PATH CROSSBUILD=1 init_buildsystem --rpmlist $SYSROOT_RPMS "$MYSRCDIR/$SPECFILE"
-		ERR=$?
-		#TODO: make proper error handling
+		if [ x$1 = xprepare ]; then
+			BUILD_ROOT=$BUILD_ROOT/$SYSROOT_PATH CROSSBUILD=1 init_buildsystem --cachedir "$CACHE_DIR" --prepare "${definesnstuff[@]}" "${repos[@]}" $CLEAN_BUILD $USEUSEDFORBUILD --rpmlist $SYSROOT_RPMS "$MYSRCDIR/$SPECFILE"
+			ERR=$?
+		else
+			BUILD_ROOT=$BUILD_ROOT/$SYSROOT_PATH CROSSBUILD=1 init_buildsystem --rpmlist $SYSROOT_RPMS "$MYSRCDIR/$SPECFILE"
+			ERR=$?
+		fi
+    		#TODO: make proper error handling
 
 
 		# fix orphaned absolute path symlinks in sysroot environment
@@ -1529,6 +1534,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		# remove setuid bit if files belong to user to make e.g. mount work
 		find $BUILD_ROOT/{bin,sbin,usr/bin,usr/sbin} -type f -uid $UID -perm +4000 -print0 | xargs -0 --no-run-if-empty chmod -s
 	    fi
+	    setup_sys_root prepare
 	    copy_oldpackages
 	fi
 	# start up xen, rerun ourself
