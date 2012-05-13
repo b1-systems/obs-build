@@ -1,0 +1,41 @@
+#!/usr/bin/perl -w
+
+BEGIN {
+  unshift @INC, ($::ENV{'BUILD_DIR'} || '/usr/lib/build');
+}
+
+use strict;
+
+use Build;
+
+my ($dist, $archs, $configdir, $debug);
+
+while (@ARGV)  {
+  if ($ARGV[0] eq '--dist') {
+    shift @ARGV;
+    $dist = shift @ARGV;
+    next;
+  }
+  if ($ARGV[0] eq '--archpath') {
+    shift @ARGV;
+    $archs = shift @ARGV;
+    next;
+  }
+  if ($ARGV[0] eq '--configdir') {
+    shift @ARGV;
+    $configdir = shift @ARGV;
+    next;
+  }
+  last;
+}
+
+die("Usage: getsb2flags --dist <dist> --archpath <archpath> [--configdir <configdir>]\n") if @ARGV;
+
+my $cf = Build::read_config_dist($dist, $archs, $configdir);
+exit 0 unless $cf->{'sb2flags'};
+my $all = $cf->{'sb2flags'}->{'*'};
+$all = defined($all) && $all ne '' ? " $all" : '';
+for (sort keys %{$cf->{'sb2flags'}}) {
+  next if $_ eq '*';
+  print "$_ $cf->{'sb2flags'}->{$_}$all\n";
+}

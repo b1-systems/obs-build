@@ -190,6 +190,7 @@ sub read_config {
   $config->{'substitute'} = {};
   $config->{'substitute_vers'} = {};
   $config->{'optflags'} = {};
+  $config->{'sb2flags'} = {};
   $config->{'order'} = {};
   $config->{'exportfilter'} = {};
   $config->{'publishfilter'} = [];
@@ -277,6 +278,10 @@ sub read_config {
       next unless @l;
       $ll = shift @l;
       $config->{'optflags'}->{$ll} = join(' ', @l);
+    } elsif ($l0 eq 'sb2flags:') {
+      next unless @l;
+      $ll = shift @l;
+      $config->{'sb2flags'}->{$ll} = join(' ', @l);
     } elsif ($l0 eq 'order:') {
       for my $l (@l) {
 	if ($l eq '!*') {

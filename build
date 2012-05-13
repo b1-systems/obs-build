@@ -325,7 +325,7 @@ cleanup_and_exit () {
 	fi
 	exec >&0 2>&0        # so that the logging tee finishes
 	sleep 1                # wait till tee terminates
-	if test "$VM_TYPE" != lxc; then
+	if test "$VM_TYPE" != lxc -a "$VM_TYPE" != sb2; then
 	    kill -9 -1        # goodbye cruel world
 	    if ! test -x /sbin/halt ; then
 		test -e /proc/sysrq-trigger || mount -n -tproc none /proc
@@ -623,7 +623,7 @@ detect_vm_2nd_stage()
     fi
     RUNNING_IN_VM=true
     mount -orw -n -tproc none /proc
-    if test "$VM_TYPE" != 'lxc'; then
+    if test "$VM_TYPE" != 'lxc' -a "$VM_TYPE" != 'sb2'; then
 	mount -n ${VMDISK_MOUNT_OPTIONS},remount,rw /
     fi
 # qemu inside of xen does not work, check again with kvm later before enabling this
@@ -1139,7 +1139,16 @@ test -n "$CROSSBUILD" && export ABUILD_INIT_WITH_IGNORE_ARCH=true # required for
 
 check_for_ppc
 
-if test "$VM_TYPE" = "lxc"; then
+set_build_arch
+
+BUILD_SB2FLAGS=`getsb2flags --dist "$BUILD_DIST" --configdir "$BUILD_DIR/configs" --archpath "$BUILD_ARCH"`
+
+if [ -n "$BUILD_SB2FLAGS" -a -z "$VM_TYPE" ]; then
+	echo "Cannot do SB2 with chroot, switching to vm type sb2"
+	VM_TYPE="sb2"
+fi
+
+if test "$VM_TYPE" = "lxc" -o "$VM_TYPE" = "sb2"; then
     VM_IMAGE=''
     VM_SWAP=''
 fi
@@ -1159,7 +1168,9 @@ if test -n "$KILL" ; then
 	echo -n "BUILDSTATUS1" >"$VM_SWAP"
     fi
     (set -C; > "$BUILD_ROOT/exit" 2>/dev/null || true)
-    if test "$VM_TYPE" = 'lxc'; then
+    if test "$VM_TYPE" = 'sb2'; then
+        echo "not able to kill sb2 chroot sessions.."
+    elif test "$VM_TYPE" = 'lxc'; then
 	LXCID=${BUILD_ROOT##*/}
 	lxc-stop -n "$LXCID" || true
 	lxc-destroy -n "$LXCID"
@@ -1289,8 +1300,6 @@ if [ -z "$RPMLIST" -a -z "$RUNNING_IN_VM" ]; then
 else
     repos=()
 fi
-
-set_build_arch
 
 if [ -n "$CLEAN_BUILD" ]; then
     DO_INIT=true
@@ -1585,7 +1594,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	test -n "$VM_SWAP" && echo "VM_SWAP='${VM_SWAPDEV:-/dev/hda2}'" >> $BUILD_ROOT/.build/build.data
 	test -n "$VMDISK_MOUNT_OPTIONS" && echo "VMDISK_MOUNT_OPTIONS='${VMDISK_MOUNT_OPTIONS}'" >> $BUILD_ROOT/.build/build.data
 	PERSONALITY=0
-	if test "$VM_TYPE" != 'lxc'; then
+	if test "$VM_TYPE" != 'lxc' -a "$VM_TYPE" != 'sb2'; then
 	    test -n "$PERSONALITY_SYSCALL" && PERSONALITY=`perl -e 'print syscall('$PERSONALITY_SYSCALL', 0)."\n"'`
 	fi
 	if test "$(uname -m)" = 'ppc'; then
@@ -1725,6 +1734,13 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		fi
 		echo "$@"
 		"$@"
+	elif [ "$VM_TYPE" = 'sb2' ]; then
+		echo "starting sb2 part inside chroot.."
+		echo "rootfs / rootfs rw 0 0" > $BUILD_ROOT/etc/mtab
+		chroot $BUILD_ROOT "$vm_init_script"
+		BUILDSTATUS="$?"
+		test "$BUILDSTATUS" != 255 || BUILDSTATUS=3
+		cleanup_and_exit "$BUILDSTATUS"
 	elif [ "$VM_TYPE" = 'lxc' ]; then
 		echo "booting $VM_TYPE ..."
 		LXCCONF="$BUILD_ROOT/.build.lxc.conf"

@@ -39,6 +39,7 @@ install:
 	    getmacros \
 	    getoptflags \
 	    gettype \
+	    getsb2flags \
 	    getchangetarget \
 	    common_functions \
 	    init_buildsystem \
