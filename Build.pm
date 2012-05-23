@@ -198,8 +198,6 @@ sub read_config {
   $config->{'repotype'} = [];
   $config->{'patterntype'} = [];
   $config->{'fileprovides'} = {};
-  $config->{'sysroot'} = [];
-  $config->{'targetsysroot'} = '';
   # remember removed packages for crossbuild
   $config->{'nopreinstall'} = [];
   $config->{'novminstall'} = [];
@@ -303,14 +301,6 @@ sub read_config {
       $config->{'target'} = join(' ', @l);
     } elsif ($l0 eq 'hostarch:') {
       $config->{'hostarch'} = join(' ', @l);
-    } elsif ($l0 eq 'sysroot:') {
-      if (@l == 5) {
-        push @{$config->{'sysroot'}}, { 'label' => $l[0], paths => [ {'project' => $l[1], 'repository' => $l[2]} ], 'arch' => $l[3], 'path' => $l[4] , };
-      } else {
-        warn("error in Sysroot: definition\n");
-      }
-    } elsif ($l0 eq'targetsysroot:') {
-      $config->{'targetsysroot'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
@@ -536,27 +526,6 @@ sub get_nosupports {
 sub get_required {
   my ($config) = @_;
   return @{$config->{'required'}};
-}
-
-sub get_sysroots {
-  my ($config) = @_;
-  #drop sysroots with duplicate label.. first one wins..
-  my (@sysroots, @tmp_sysroots);
-  for my $sr (@{$config->{'sysroot'}}) {
-    push @sysroots, $sr if(!grep{$_->{'label'} eq $sr->{'label'}} @sysroots);
-  }
-  #drop sysroots with duplicate path, first one wins...
-  for my $sr (@sysroots) {
-    push @tmp_sysroots, $sr if(!grep{$_->{'path'} eq $sr->{'path'}} @tmp_sysroots);
-  }
-  @sysroots = @tmp_sysroots;
-
-  return @sysroots;
-}
-
-sub get_targetsysroot {
-  my ($config) = @_;
-  return $config->{'targetsysroot'};
 }
 
 sub get_crosssubst {
