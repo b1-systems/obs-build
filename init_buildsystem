@@ -35,8 +35,6 @@ RPMIDFMT="%{NAME}-%{VERSION}-%{RELEASE} %{BUILDTIME}\n"
 
 CALLRPM="chroot $BUILD_ROOT rpm";
 [ -n "$CROSSBUILD" ] && CALLRPM="rpm --root $BUILD_ROOT";
-# FIXME: workaround for not working mix of chroot rpm calls and rpm --root calls
-CALLRPM="rpm --root $BUILD_ROOT";
 
 PREPARE_VM=
 USE_SYSTEM_QEMU=
@@ -1051,7 +1049,7 @@ for PKG in $PACKAGES_TO_INSTALL_FIRST RUN_LDCONFIG $PACKAGES_TO_INSTALL $PACKAGE
                  grep -v "^warning:.*saved as.*rpmorig$"
     else
        ( $CALLRPM --ignorearch --nodeps -U --oldpackage --ignoresize $RPMCHECKOPTS \
-		   $ADDITIONAL_PARAMS $BUILD_ROOT/.init_b_cache/$PKG.rpm 2>&1 || \
+		   $ADDITIONAL_PARAMS .init_b_cache/$PKG.rpm 2>&1 || \
 	     touch $BUILD_ROOT/exit ) | \
 	         grep -v "^warning:.*saved as.*rpmorig$"
     fi
