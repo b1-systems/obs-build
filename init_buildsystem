@@ -34,7 +34,11 @@ TMPFILE=$BUILD_ROOT/tmpfile
 RPMIDFMT="%{NAME}-%{VERSION}-%{RELEASE} %{BUILDTIME}\n"
 
 CALLRPM="chroot $BUILD_ROOT rpm";
-[ -n "$CROSSBUILD" ] && CALLRPM="rpm --root $BUILD_ROOT";
+if [ -n "$CROSSBUILD" ]; then
+       CALLRPM="rpm --root $BUILD_ROOT";
+       echo -n "[TCC] rpm version: "
+       $CALLRPM --version;
+fi;
 
 PREPARE_VM=
 USE_SYSTEM_QEMU=

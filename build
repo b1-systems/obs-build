@@ -2181,6 +2181,11 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 
 	rpmbuild=rpmbuild
 
+        if [ -n "$CROSSBUILD" ]; then
+                echo -n "[TCC] rpmbuild version: "
+                chroot $BUILD_ROOT $rpmbuild --version
+        fi
+ 
 	test -x $BUILD_ROOT/usr/bin/rpmbuild || rpmbuild=rpm
 	# su involves a shell which would require even more
 	# complicated quoting to bypass than this
