@@ -35,7 +35,7 @@ RPMIDFMT="%{NAME}-%{VERSION}-%{RELEASE} %{BUILDTIME}\n"
 
 CALLRPM="chroot $BUILD_ROOT rpm";
 if [ -n "$CROSSBUILD" ]; then
-       CALLRPM="rpm --root $BUILD_ROOT";
+       CALLRPM="chroot $HOST_BUILD_ROOT rpm --root $BUILD_ROOT";
        echo -n "[TCC] rpm version: "
        $CALLRPM --version;
 fi;
