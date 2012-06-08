@@ -377,17 +377,32 @@ sub do_subst {
 }
 
 sub do_subst_vers {
-  my ($config, $subst_crossdeps, @deps) = @_;
+  my ($config, $is_buildrequires, @deps) = @_;
   my @res;
   my %done;
   my $subst = $config->{'substitute_vers'};
   while (@deps) {
     my ($d, $dv) = splice(@deps, 0, 2);
     next if $done{$d};
-    # FIXME: perform substitutes if $d is is not a cross-subst even if $subst_crossdeps==0
-    # Currently this does not perform versioned substitution if $subst_crossdeps is set.
-    #if ($subst->{$d} && defined $subst_crossdeps && $subst_crossdeps) {
-    if ($subst->{$d}) {
+    # Ignore subsituation for cross-subscriptions for Require: lines (subst_crossdeps == 0)
+    # Example:
+    # Subsitute: gcc cross-gcc-arm[host]
+    #
+    # Original Spec file line:
+    # Requires: gcc = 4.5.0
+    #
+    # Expected Spec file line:
+    # Requires: gcc = 4.5.0
+    #
+    # Not expected Spec file line:
+    # Requires: cross-gcc-arm[host]
+    #
+    my $is_cross_subst = 0;
+    $is_cross_subst = 1 if grep {defined($_) && $_ =~ /\[/} @{$subst->{$d}};
+
+    if ( ($subst->{$d} && not $is_cross_subst  )
+       || ($subst->{$d} && $is_buildrequires && $is_cross_subst) ) {
+
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
     } else {
