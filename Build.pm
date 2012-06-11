@@ -200,6 +200,7 @@ sub read_config {
   $config->{'fileprovides'} = {};
   $config->{'sysroot'} = [];
   $config->{'targetsysroot'} = '';
+  $config->{'targetsysrootpath'};
   # remember removed packages for crossbuild
   $config->{'nopreinstall'} = [];
   $config->{'novminstall'} = [];
@@ -309,8 +310,10 @@ sub read_config {
       } else {
         warn("error in Sysroot: definition\n");
       }
-    } elsif ($l0 eq'targetsysroot:') {
+    } elsif ($l0 eq 'targetsysroot:') {
       $config->{'targetsysroot'} = $l[0];
+    } elsif ($l0 eq 'targetsysrootpath:') {
+      $config->{'targetsysrootpath'} = $l[0];
     } elsif ($l0 !~ /^[#%]/) {
       warn("unknown keyword in config: $l0\n");
     }
