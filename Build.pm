@@ -401,7 +401,9 @@ sub do_subst_vers {
     # Requires: cross-gcc-arm[host]
     #
     my $is_cross_subst = 0;
-    $is_cross_subst = 1 if grep {defined($_) && $_ =~ /\[/} @{$subst->{$d}};
+    if ($subst->{$d}) {
+      $is_cross_subst = 1 if grep {$_ =~ /\[/} @{$subst->{$d}};
+    }
 
     if ($subst->{$d} && ( not $is_cross_subst || $is_buildrequires ) ) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
