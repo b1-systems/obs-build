@@ -200,7 +200,7 @@ sub read_config {
   $config->{'fileprovides'} = {};
   $config->{'sysroot'} = [];
   $config->{'targetsysroot'} = '';
-  $config->{'targetsysrootpath'};
+  $config->{'targetsysrootpath'} = '';
   # remember removed packages for crossbuild
   $config->{'nopreinstall'} = [];
   $config->{'novminstall'} = [];
