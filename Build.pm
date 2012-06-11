@@ -400,9 +400,7 @@ sub do_subst_vers {
     my $is_cross_subst = 0;
     $is_cross_subst = 1 if grep {defined($_) && $_ =~ /\[/} @{$subst->{$d}};
 
-    if ( ($subst->{$d} && not $is_cross_subst  )
-       || ($subst->{$d} && $is_buildrequires && $is_cross_subst) ) {
-
+    if ($subst->{$d} && ( not $is_cross_subst || $is_buildrequires ) ) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
     } else {
