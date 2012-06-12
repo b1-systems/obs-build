@@ -402,7 +402,7 @@ sub do_subst_vers {
     #
     my $is_cross_subst = 0;
     if ($subst->{$d}) {
-      $is_cross_subst = 1 if grep {$_ =~ /\[/} @{$subst->{$d}};
+      $is_cross_subst = 1 if grep {defined($_) && $_ =~ /\[/} @{$subst->{$d}};
     }
 
     if ($subst->{$d} && ( not $is_cross_subst || $is_buildrequires ) ) {
