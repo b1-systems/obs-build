@@ -47,7 +47,7 @@ kvm_virtio=
 console=ttyS0
 
 # need to restore build root owner for non-root builds
-browner=0
+browner=
 
 # Default uid:gid for the build user
 ABUILD_UID=399
@@ -57,6 +57,7 @@ DO_INIT=true
 DO_LINT=
 DO_CHECKS=true
 CLEAN_BUILD=
+USE_SYSTEM_QEMU=
 SPECFILES=()
 SRCDIR=
 BUILD_JOBS=
@@ -72,7 +73,7 @@ VMDISK_ROOTSIZE=4096
 VMDISK_SWAPSIZE=1024
 VMDISK_FILESYSTEM=ext3
 # settings are for speed and not data safety, we format anyway on next run
-VMDISK_MOUNT_OPTIONS='-o data=writeback,nobarrier,commit=150,noatime'
+VMDISK_MOUNT_OPTIONS=__default
 MEMSIZE=
 RUNNING_IN_VM=
 RPMLIST=
@@ -146,12 +147,24 @@ Known Parameters:
 
   --help      You already got it :)
 
+  --kill      Instead of starting a build kill the one currently
+              running.
+
+  --shell     Instead of starting a build start a root shell in
+              the build root.
+
   --clean     Delete old build root before initializing it
 
   --no-init   Skip initialization of build root and start with build
               immediately.
 
   --no-checks Do not run post-build checks
+
+  --lint      Run rpmlint after build.
+
+  --logfile logfile
+              Capture build output to logfile. Defaults to
+              .build.log in the build root for non-VM builds.
 
   --repository PATH
 	      Use package repository at PATH. Supported formats are
@@ -171,6 +184,7 @@ Known Parameters:
   --verify    Run verify when initializing the build root
 
   --extra-packs pack
+  -X pack
               Also install package 'pack'
 
   --root rootdir
@@ -180,7 +194,7 @@ Known Parameters:
               Use 'cachedir' to cache remote repo's packages, the
               default cache dir is /var/cache/build, every repo
               given by --repository corresponds to a subdir named
-              as md5sum of its repo url, forx eaxmple:
+              as md5sum of its repo url, for example:
                  /var/cache/build/3e8ea9b47808629414a0cebc33ea285e
 
   --oldpackages oldpackagesdir
@@ -192,20 +206,38 @@ Known Parameters:
               List rpms that would be used to create a fresh build root.
               Does not create the build root or perform a build.
 
+  --dist dist
+              Distribution to use
+
   --with X
-              enable feature X for build
+              Enable feature X for build
 
   --without X
-              disable feature X for build
+              Disable feature X for build
 
   --define 'X Y'
-              define macro X with value Y
+              Define macro X with value Y
+
+  --release release
+              Override Release in spec file
+
+  --stage -bSTAGE
+              Set stage for rpmbuild. Defaults to -ba.
+
+  --target platform
+              Set target platform for rpmbuild
+
+  --jobs N    Use N parallel processes during build.
+              Sets %jobs and %_smp_mflags macros and
+              defines the number of CPUs to use for
+              VMs.
 
   --ccache
-              use ccache to speed up rebuilds
+              Use ccache to speed up rebuilds
 
   --icecream N
-              use N parallel build jobs with icecream
+              Use N parallel build jobs with icecream
+
   --overlay OVERLAY
               Copy overlay filesystem to buildroot after installing
               all RPMs. This must be a valid directory.
@@ -241,20 +273,23 @@ Known Parameters:
 
   --vm-swap FILE
               Use FILE as swap space for virtual machine. The swap space is
-              also used for retrieving packages from the VM so it's size must be
-              sufficiently large
+              also used for retrieving packages from the VM so its size must
+              be sufficiently large
 
   --vm-disk-size SIZEINMB
   --vm-swap-size SIZEINMB
   --vm-disk-filesystem TYPE
               Defaults for automatic setup of VM root/swap files
 
+  --vm-memory SIZEINMB
+              Set amount of RAM for VMs
+
   --vm-kernel FILE
   --vm-initrd FILE
               Kernel and initrd to use for VM (kvm and qemu only)
 
   --debug
-              enable creation of a debuginfo package
+              Enable creation of a debuginfo package
 
 Remember to have fun!
 
@@ -284,7 +319,7 @@ cleanup_and_exit () {
         fi
     fi
     if test -n "$RUNNING_IN_VM" ; then
-	chown $browner $BUILD_ROOT
+	test -n "$browner" && chown "$browner" $BUILD_ROOT
 	cd /
 	if test -n "$VM_SWAP" -a -e "$VM_SWAP" ; then
 	    swapoff "$VM_SWAP" 2>/dev/null
@@ -457,9 +492,13 @@ setmemorylimit()
 create_baselibs()
 {
     local pkgs=()
+    local line
 
     BASELIBS_CFG=
 
+    if test "$BUILDTYPE" == "arch" ; then
+	return
+    fi
     if test "$BUILDTYPE" == "dsc" ; then
 	pkgs=($DEBS)
     else # spec and kiwi
@@ -512,7 +551,10 @@ create_baselibs()
 	fi
     fi
     echo "... creating baselibs$whichone"
-    chroot $BUILD_ROOT su -c "$mkbaselibs $BASELIBS_GLOBAL $BASELIBS_CFG ${pkgs[*]#$BUILD_ROOT}" - $BUILD_USER || cleanup_and_exit 1
+    while read line
+    do
+	chroot $BUILD_ROOT su -c "$mkbaselibs $BASELIBS_GLOBAL $BASELIBS_CFG $line" - $BUILD_USER || cleanup_and_exit 1
+    done < <(IFS=$'\n'; echo "${pkgs[*]#$BUILD_ROOT}" | xargs -n 1024)
     rm -rf $BUILD_ROOT/.mkbaselibs
 }
 
@@ -885,6 +927,9 @@ while test -n "$1"; do
       *-baselibs-internal)
 	CREATE_BASELIBS=internal
 	;;
+      *-use-system-qemu)
+	USE_SYSTEM_QEMU=true
+      ;;
       *-root)
 	needarg
 	BUILD_ROOT="$ARG"
@@ -921,7 +966,9 @@ while test -n "$1"; do
 	needarg
 	VM_TYPE="$ARG"
 	case "$VM_TYPE" in
-	    xen|kvm|uml|qemu|lxc) ;;
+	    xen|kvm|uml|qemu|lxc)
+		test -z "$VM_IMAGE" && VM_IMAGE=1
+	        ;;
 	    none|chroot) VM_TYPE='' ;;
 	    *)
 		echo "VM $VM_TYPE not supported"
@@ -969,6 +1016,12 @@ while test -n "$1"; do
 	needarg
 	VMDISK_FILESYSTEM="$ARG"
 	shift
+      ;;
+      *-vmdisk-mount-options|--vm-disk-mount-options)
+       needarg
+        # options needs to be quoted to handle argument which might start with "-o ..."
+       VMDISK_MOUNT_OPTIONS=$(echo $ARG | sed 's/^\"\(.*\)\"$/\1/g')
+       shift
       ;;
       *-rpmlist)
 	needarg
@@ -1104,6 +1157,14 @@ check_for_ppc
 if test "$VM_TYPE" = "lxc"; then
     VM_IMAGE=''
     VM_SWAP=''
+fi
+
+if test "$VMDISK_MOUNT_OPTIONS" = __default; then
+    if test "$VMDISK_FILESYSTEM" = reiserfs ; then
+	VMDISK_MOUNT_OPTIONS='-o data=writeback,commit=150,noatime'
+    else
+	VMDISK_MOUNT_OPTIONS='-o data=writeback,nobarrier,commit=150,noatime'
+    fi
 fi
 
 if test -n "$KILL" ; then
@@ -1395,6 +1456,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
       *.spec|*.src.rpm) BUILDTYPE=spec ;;
       *.dsc) BUILDTYPE=dsc ;;
       *.kiwi) BUILDTYPE=kiwi ;;
+      PKGBUILD) BUILDTYPE=arch ;;
     esac
     if test -z "$BUILDTYPE" ; then
        echo "don't know how to build $SPECFILE"
@@ -1478,7 +1540,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	if test "$DO_INIT" = true ; then
 	    # do fist stage of init_buildsystem
 	    rm -f $BUILD_ROOT/.build.success
-	    set -- init_buildsystem --cachedir "$CACHE_DIR" --prepare "${definesnstuff[@]}" "${repos[@]}" $CLEAN_BUILD $USEUSEDFORBUILD $RPMLIST "$MYSRCDIR/$SPECFILE" $ADDITIONAL_PACKS
+	    set -- init_buildsystem --cachedir "$CACHE_DIR" --prepare "${definesnstuff[@]}" "${repos[@]}" $CLEAN_BUILD $USE_SYSTEM_QEMU $USEUSEDFORBUILD $RPMLIST "$MYSRCDIR/$SPECFILE" $ADDITIONAL_PACKS
 	    echo "$* ..."
 	    "$@" || cleanup_and_exit 1
 	    check_exit
@@ -1531,6 +1593,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	# FIXME: this depends on the kernel and vm.
 	# could be hda2, sda2 for xen or hdb/sdb for qemu
 	test -n "$VM_SWAP" && echo "VM_SWAP='${VM_SWAPDEV:-/dev/hda2}'" >> $BUILD_ROOT/.build/build.data
+	test -n "$VMDISK_MOUNT_OPTIONS" && echo "VMDISK_MOUNT_OPTIONS='${VMDISK_MOUNT_OPTIONS}'" >> $BUILD_ROOT/.build/build.data
 	PERSONALITY=0
 	if test "$VM_TYPE" != 'lxc'; then
 	    test -n "$PERSONALITY_SYSCALL" && PERSONALITY=`perl -e 'print syscall('$PERSONALITY_SYSCALL', 0)."\n"'`
@@ -1716,6 +1779,9 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		elif test "$BUILDTYPE" = dsc ; then
 		    mkdir -p DEBS
 		    find . -type f | while read i; do mv "$i" DEBS/; done
+		elif test "$BUILDTYPE" = arch ; then
+		    mkdir -p ARCHPKGS
+		    find . -type f | while read i; do mv "$i" ARCHPKGS/; done
 		else
 		    mkdir -p KIWI
 		    find . -type f | while read i; do mv "$i" KIWI/; done
@@ -1733,7 +1799,8 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		cleanup_and_exit ${BUILDSTATUS#BUILDSTATUS}
 		;;
 	      *)
-		echo "No buildstatus set, either the packager broke the base system (glibc/bash/perl) or the build host has a kernel or hardware problem, OBS server will retry..."
+		echo "No buildstatus set, either the base system is broken (glibc/bash/perl)"
+		echo "or the build host has a kernel or hardware problem..."
 		cleanup_and_exit 3
 		;;
 	    esac
@@ -1750,7 +1817,7 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	echo "BUILD_INCARNATION=$INCARNATION" > $BUILD_ROOT/.buildenv
 	CREATE_BUILD_BINARIES=
 	egrep '^#[       ]*needsbinariesforbuild[       ]*$' >/dev/null <$MYSRCDIR/$SPECFILE && CREATE_BUILD_BINARIES=--create-build-binaries
-	set -- init_buildsystem --cachedir "$CACHE_DIR" "${definesnstuff[@]}" "${repos[@]}" $CLEAN_BUILD $USEUSEDFORBUILD $CREATE_BUILD_BINARIES $RPMLIST "$MYSRCDIR/$SPECFILE" $ADDITIONAL_PACKS
+	set -- init_buildsystem --cachedir "$CACHE_DIR" "${definesnstuff[@]}" "${repos[@]}" $CLEAN_BUILD $USE_SYSTEM_QEMU $USEUSEDFORBUILD $CREATE_BUILD_BINARIES $RPMLIST "$MYSRCDIR/$SPECFILE" $ADDITIONAL_PACKS
 	echo "$* ..."
 	"$@" || cleanup_and_exit 1
 	check_exit
@@ -1810,10 +1877,10 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 
     if test $BUILD_USER = abuild ; then
 	if ! egrep '^abuild:' >/dev/null <$BUILD_ROOT/etc/passwd ; then
-	    echo "abuild::${ABUILD_UID}:${ABUILD_GID}:Autobuild:/home/abuild:/bin/bash" >>$BUILD_ROOT/etc/passwd
+	    echo "abuild:x:${ABUILD_UID}:${ABUILD_GID}:Autobuild:/home/abuild:/bin/bash" >>$BUILD_ROOT/etc/passwd
 	    echo 'abuild:*:::::::' >>$BUILD_ROOT/etc/shadow # This is needed on Mandriva 2009
 	    echo 'abuild:*::' >>$BUILD_ROOT/etc/gshadow # This is needed on Ubuntu
-	    echo "abuild::${ABUILD_GID}:" >>$BUILD_ROOT/etc/group
+	    echo "abuild:x:${ABUILD_GID}:" >>$BUILD_ROOT/etc/group
 	    mkdir -p $BUILD_ROOT/home/abuild
 	    chown "$ABUILD_UID:$ABUILD_GID" $BUILD_ROOT/home/abuild
 	else
@@ -1994,6 +2061,12 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	chroot $BUILD_ROOT su -c "dpkg-source -x $DEB_SOURCEDIR/$DEB_DSCFILE $TOPDIR/BUILD" - $BUILD_USER
     fi
 
+    if test "$BUILDTYPE" = arch ; then
+	echo "Preparing sources..."
+	chroot $BUILD_ROOT su -c "cd $TOPDIR/SOURCES && makepkg -s -o 2>&1 >/dev/null" - $BUILD_USER
+	mv $BUILD_ROOT/$TOPDIR/SOURCES/* -t $BUILD_ROOT/$TOPDIR/BUILD
+    fi
+
     chown -R "$ABUILD_UID:$ABUILD_GID" "$BUILD_ROOT$TOPDIR"
     cd $BUILD_ROOT$TOPDIR/SOURCES || cleanup_and_exit 1
 
@@ -2053,8 +2126,15 @@ for SPECFILE in "${SPECFILES[@]}" ; do
     if test "$BUILDTYPE" = spec ; then
 	test -z "$BUILD_RPM_BUILD_STAGE" && BUILD_RPM_BUILD_STAGE=-ba
 
+	rpmbuild=rpmbuild
+	test -x $BUILD_ROOT/usr/bin/rpmbuild || rpmbuild=rpm
+
 	# XXX: move _srcdefattr to macro file?
 	rpmbopts=("$BUILD_RPM_BUILD_STAGE" "--define" "_srcdefattr (-,root,root)")
+	if [ "$rpmbuild" == "rpmbuild" ]; then
+                # use only --nosignature for rpm v4
+		rpmbopts[${#rpmbopts[@]}]="--nosignature"
+	fi
 	if [ -n "$ABUILD_TARGET" ]; then
 		rpmbopts[${#rpmbopts[@]}]="--target=$ABUILD_TARGET"
 	fi
@@ -2075,9 +2155,6 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 		rpmbopts[${#rpmbopts[@]}]="RSYNCDONE 1"
 	fi
 
-	rpmbuild=rpmbuild
-
-	test -x $BUILD_ROOT/usr/bin/rpmbuild || rpmbuild=rpm
 	# su involves a shell which would require even more
 	# complicated quoting to bypass than this
 	toshellscript $rpmbuild \
@@ -2127,6 +2204,14 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	while read f ; do
 	    ln $BUILD_ROOT/$DEB_SOURCEDIR/$f $BUILD_ROOT/$TOPDIR/DEBS/
 	done < <(sed -ne '/^Files:/,$s/^ ................................ [0-9][0-9]* //p' < $BUILD_ROOT/$DEB_SOURCEDIR/$DEB_DSCFILE)
+    fi
+
+    if test "$BUILDTYPE" = arch ; then
+	chroot $BUILD_ROOT su -c "cd $TOPDIR/BUILD && makepkg -f" - $BUILD_USER < /dev/null && BUILD_SUCCEEDED=true
+	mkdir -p $BUILD_ROOT/$TOPDIR/ARCHPKGS
+	for PKG in $BUILD_ROOT/$TOPDIR/BUILD/*.pkg.tar.?z ; do
+	    test -e "$PKG" && mv "$PKG" "$BUILD_ROOT/$TOPDIR/ARCHPKGS"
+	done
     fi
 
     if test "$BUILDTYPE" = kiwi ; then
@@ -2239,6 +2324,9 @@ if test -n "$RUNNING_IN_VM" -a -n "$VM_SWAP"; then
 	    ;;
 	kiwi)
 	    computeblocklists $args $TOPDIR/KIWI/* $TOPDIR/OTHER/* > "$VM_SWAP"
+	    ;;
+	arch)
+	    computeblocklists $args $TOPDIR/ARCHPKGS/* $TOPDIR/OTHER/* > "$VM_SWAP"
 	    ;;
     esac || cleanup_and_exit 1
 fi

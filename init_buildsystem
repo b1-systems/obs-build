@@ -32,6 +32,7 @@ USE_FORCE=false
 RPMIDFMT="%{NAME}-%{VERSION}-%{RELEASE} %{BUILDTIME}\n"
 
 PREPARE_VM=
+USE_SYSTEM_QEMU=
 USEUSEDFORBUILD=
 LIST_STATE=
 RPMLIST=
@@ -43,6 +44,10 @@ while test -n "$1" ; do
 	--prepare)
 	    shift
 	    PREPARE_VM=true
+	    ;;
+	--use-system-qemu)
+	    shift
+	    USE_SYSTEM_QEMU=true
 	    ;;
 	--create-build-binaries)
 	    shift
@@ -187,6 +192,13 @@ preinstall()
 	    test -e .init_b_cache/scripts/control/postinst && mv .init_b_cache/scripts/control/postinst ".init_b_cache/scripts/$1.post"
 	fi
 	rm -rf .init_b_cache/scripts/control control.tar.gz data.tar.gz
+    elif test -e "$BUILD_ROOT/.init_b_cache/rpms/$1.arch" ; then
+	$TAR -z -f "$BUILD_ROOT/.init_b_cache/rpms/$1.arch"
+	if test -f .INSTALL ; then
+	    cat .INSTALL > ".init_b_cache/scripts/$1.post"
+	    echo 'type post_install >/dev/null 2>&1 && post_install' >> ".init_b_cache/scripts/$1.post"
+	fi
+	rm -f .PKGINFO .INSTALL
     else
 	echo "warning: package $1 does not exist"
     fi
@@ -230,13 +242,18 @@ init_db()
 	mkdir -p $BUILD_ROOT/root
 	echo '%__dbi_perms perms=0644 nofsync' > $BUILD_ROOT/.rpmmacros
 	echo '%__dbi_perms perms=0644 nofsync' > $BUILD_ROOT/root/.rpmmacros
-    else
+    elif test $PSUF = deb ; then
 	# force dpkg into database to make epoch test work
 	if ! test "$BUILD_ROOT/.init_b_cache/rpms/dpkg.deb" -ef "$BUILD_ROOT/.init_b_cache/dpkg.deb" ; then
 	    rm -f $BUILD_ROOT/.init_b_cache/dpkg.deb
 	    cp $BUILD_ROOT/.init_b_cache/rpms/dpkg.deb $BUILD_ROOT/.init_b_cache/dpkg.deb || cleanup_and_exit 1
 	fi
 	chroot $BUILD_ROOT dpkg -i --force all .init_b_cache/dpkg.deb >/dev/null 2>&1
+    elif test $PSUF = arch ; then
+	mkdir -p $BUILD_ROOT/var/lib/pacman/sync
+	touch $BUILD_ROOT/var/lib/pacman/sync/core.db
+	touch $BUILD_ROOT/var/lib/pacman/sync/extra.db
+	touch $BUILD_ROOT/var/lib/pacman/sync/community.db
     fi
 }
 
@@ -333,6 +350,9 @@ validate_cache_file()
 	    if [ "${SRC#zypp://}" != "$SRC" ]; then
 		set -- $BUILD_DIR/createrepomddeps "$SRC"
 	    elif [ "${SRC#http://}" != "$SRC" -o "${SRC#https://}" != "$SRC" -o "${SRC#ftp://}" != "$SRC" -o "${SRC#ftps://}" != "$SRC" ]; then
+		mkdir -p "$(getcachedir "$SRC")"
+		set -- $BUILD_DIR/createrepomddeps --cachedir="$CACHE_DIR" "$SRC"
+	    elif [ "${SRC#arch@http://}" != "$SRC" -o "${SRC#arch@https://}" != "$SRC" -o "${SRC#arch@ftp://}" != "$SRC" -o "${SRC#arch@ftps://}" != "$SRC" ]; then
 		mkdir -p "$(getcachedir "$SRC")"
 		set -- $BUILD_DIR/createrepomddeps --cachedir="$CACHE_DIR" "$SRC"
 	    elif [ ! -e "$SRC" ]; then
@@ -461,6 +481,7 @@ downloadpkg()
     elif [ "${url:0:7}" == "http://" -o "${url:0:8}" == "https://" -o "${url:0:6}" == "ftp://" -o "${url:0:7}" == "ftps://" ] ; then
 	cachedir="$(getcachedir "$url")"
 	local name="$(basename "$url")"
+	name=${name/%.pkg.tar.?z/.arch}
 	SRC="$cachedir/$name"
     else
 	echo "Invalid url: $url"
@@ -477,12 +498,16 @@ downloadpkg()
 	    echo "expected $destfile after download but it's missing" >&2
 	    cleanup_and_exit 1
 	fi
-	rpm -K "$destfile" > $destfile.v || { echo "rpm verify failed" >&2; rm -rf "$destdir"; cleanup_and_exit 1; }
-	if grep "NOT OK" $destfile.v; then
-	    rm -rf "$destdir"
-	    cleanup_and_exit 1
-	fi
-	rm -f "$destfile.v"
+	case $destfile in
+	  *.rpm)
+	    rpm -K "$destfile" > $destfile.v || { echo "rpm verify failed" >&2; rm -rf "$destdir"; cleanup_and_exit 1; }
+	    if grep "NOT OK" $destfile.v; then
+		rm -rf "$destdir"
+		cleanup_and_exit 1
+	    fi
+	    rm -f "$destfile.v"
+	    ;;
+	esac
 	mv "$destfile" "$SRC" || cleanup_and_exit 1
     fi
 }
@@ -490,8 +515,11 @@ downloadpkg()
 getcachedir()
 {
     url=$1
+    case $url in
+      *.pkg.tar.?z) url="arch@$url" ;;
+    esac
     for repo in "${repos[@]}" ; do
-	if [ "${url:0:${#repo}}" == "$repo" ] ; then
+	if [ "${url:0:${#repo}}" == "$repo" -o "${url:0:${#repo}}" == "$repo" ] ; then
 	    read repoid dummy < <(echo -n "$repo" | md5sum)
 	    echo "$CACHE_DIR/$repoid"
 	    break
@@ -513,7 +541,7 @@ set_build_arch
 trap fail_exit EXIT
 
 if [ "$BUILD_ROOT" = / ]; then
-    read dummy dummy browner dummy < <(ls -ld /)
+    browner="$(stat -c %U /)"
 fi
 
 if [ -n "$CLEAN_BUILD" ]; then
@@ -609,7 +637,7 @@ else
     # copy the QEMU emulator
     #
     if check_use_emulator; then
-	copy_qemu
+	[ -n "$USE_SYSTEM_QEMU" ] && copy_qemu
 	if [ -z "$PREPARE_VM" ]; then
 	    if ! check_binfmt_registered; then
 		echo "registering binfmt handlers"
@@ -691,9 +719,10 @@ else
 		    cleanup_and_exit 1
 		    ;;
 	    esac
+	    # downloadpkg modified $SRC, so it has a right name for use
 	fi
-	# downloadpkg modified $SRC, so it has a right name for use
-	ln -s "$SRC" "$BUILD_ROOT/.init_b_cache/rpms/$PKG.${SRC##*.}"
+	SRCSUF=${SRC/%.pkg.tar.?z/.arch}
+	ln -s "$SRC" "$BUILD_ROOT/.init_b_cache/rpms/$PKG.${SRCSUF##*.}"
 	PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $PKG"
     done < $RPMLIST
 
@@ -704,14 +733,24 @@ else
 
     echo "$GUESSED_DIST" > $BUILD_ROOT/.guessed_dist
     test -n "$BUILD_DIST" || BUILD_DIST="$GUESSED_DIST"
-    PSUF=rpm
-    test -L $BUILD_ROOT/.init_b_cache/rpms/rpm.rpm || PSUF=deb
+    DIST_TYPE=`gettype --dist "$BUILD_DIST" --configdir "$BUILD_DIR/configs" --archpath "$BUILD_ARCH"`
+    case "$DIST_TYPE" in
+	spec)  PSUF=rpm ;;
+	dsc)   PSUF=deb ;;
+	arch)  PSUF=arch ;;
+	*)
+	    # auto detect from packages
+	    PSUF=rpm
+	    test -L $BUILD_ROOT/.init_b_cache/rpms/dpkg.deb && PSUF=deb
+	    test -L $BUILD_ROOT/.init_b_cache/rpms/pacman.arch && PSUF=arch
+	    ;;
+    esac
 fi
 
 #
 # now test if there is already a build dir.
 #
-if test ! -f $BUILD_ROOT/var/lib/rpm/packages.rpm -a ! -f $BUILD_ROOT/var/lib/rpm/Packages ; then
+if test ! -f $BUILD_ROOT/var/lib/rpm/packages.rpm -a ! -f $BUILD_ROOT/var/lib/rpm/Packages -a ! -e $BUILD_ROOT/.build/init_buildsystem.data ; then
     mkdir -p $BUILD_ROOT/var/lib/rpm || cleanup_and_exit 1
     mkdir -p $BUILD_ROOT/usr/src/packages/SOURCES || cleanup_and_exit 1
     mkdir -p $BUILD_ROOT/etc || cleanup_and_exit 1
@@ -730,23 +769,29 @@ if test ! -f $BUILD_ROOT/var/lib/rpm/packages.rpm -a ! -f $BUILD_ROOT/var/lib/rp
     for PKG in $PACKAGES_TO_RUNSCRIPTS ; do
 	: > $BUILD_ROOT/.init_b_cache/scripts/$PKG.run
     done
+    progress_setup PACKAGES_TO_PREINSTALL
     for PKG in $PACKAGES_TO_PREINSTALL ; do
+	progress_step PACKAGES_TO_PREINSTALL
 	preinstall ${PKG##*/}
     done
     if test -n "$PREPARE_VM" ; then
+	progress_setup PACKAGES_TO_VMINSTALL
 	for PKG in $PACKAGES_TO_VMINSTALL ; do
+	    progress_step PACKAGES_TO_VMINSTALL
 	    preinstall ${PKG##*/}
 	done
     fi
     # add cbpreinstall if cross HOST != TARGET
+    progress_setup PACKAGES_TO_CBPREINSTALL
     for PKG in $PACKAGES_TO_CBPREINSTALL ; do
+	progress_step PACKAGES_TO_CBPREINSTALL
         preinstall ${PKG##*/}
     done
     if [ -w /root ]; then
 	    test -c $BUILD_ROOT/dev/null || create_devs
     fi
     test -e $BUILD_ROOT/etc/fstab || touch $BUILD_ROOT/etc/fstab
-    test -e $BUILD_ROOT/etc/ld.so.conf || cp $BUILD_ROOT/etc/ld.so.conf.in $BUILD_ROOT/etc/ld.so.conf
+    test ! -e $BUILD_ROOT/etc/ld.so.conf -a -e $BUILD_ROOT/etc/ld.so.conf.in && cp $BUILD_ROOT/etc/ld.so.conf.in $BUILD_ROOT/etc/ld.so.conf
     if test -z "$PREPARE_VM" ; then
 	run_pkg_scripts
 	init_db
@@ -877,14 +922,16 @@ RPMCHECKOPTS_HOST=
 test -x $BUILD_ROOT/usr/bin/rpmsign && RPMCHECKOPTS="--nodigest --nosignature"
 test -x /usr/bin/rpmsign && RPMCHECKOPTS_HOST="--nodigest --nosignature"
 
+MAIN_LIST="$PACKAGES_TO_INSTALL_FIRST $PACKAGES_TO_INSTALL $PACKAGES_TO_CBINSTALL"
+progress_setup MAIN_LIST
 for PKG in $PACKAGES_TO_INSTALL_FIRST RUN_LDCONFIG $PACKAGES_TO_INSTALL $PACKAGES_TO_CBINSTALL; do
-
     case $PKG in
       RUN_LDCONFIG)
 	test -x $BUILD_ROOT/sbin/ldconfig && chroot $BUILD_ROOT /sbin/ldconfig 2>&1
 	continue
       ;;
     esac
+    progress_step MAIN_LIST
 
     test -f $BUILD_ROOT/installed-pkg/$PKG && continue
 
@@ -913,6 +960,27 @@ for PKG in $PACKAGES_TO_INSTALL_FIRST RUN_LDCONFIG $PACKAGES_TO_INSTALL $PACKAGE
 		ln -s "/bin/true" "$BUILD_ROOT/sbin/start"
 	    fi
 	fi
+	# another workaround, see bug bnc#733699
+	rm -f "$BUILD_ROOT/var/run/init.upgraded"
+	continue
+    fi
+
+    if test $PSUF = arch ; then
+	test -L $BUILD_ROOT/.init_b_cache/rpms/$PKG.$PSUF || continue
+	if ! test "$BUILD_ROOT/.init_b_cache/rpms/$PKG.$PSUF" -ef "$BUILD_ROOT/.init_b_cache/$PKG.$PSUF" ; then 
+	    rm -f $BUILD_ROOT/.init_b_cache/$PKG.$PSUF
+	    cp $BUILD_ROOT/.init_b_cache/rpms/$PKG.$PSUF $BUILD_ROOT/.init_b_cache/$PKG.$PSUF || cleanup_and_exit 1
+	fi
+	PKGID=`readlink $BUILD_ROOT/.init_b_cache/rpms/$PKG.$PSUF`
+	PKGID="${PKGID##*/}"
+	PKGID="${PKGID/%.pkg.tar.?z/.arch}"
+	PKGID="${PKGID%.$PSUF}"
+	echo "installing ${PKGID%_*}"
+	# -d -d disables deps checking
+	( chroot $BUILD_ROOT pacman -Uf -d -d --noconfirm .init_b_cache/$PKG.$PSUF 2>&1 || touch $BUILD_ROOT/exit ) | \
+	    perl -ne '$|=1;/^(warning: could not get filesystem information for |loading packages|looking for inter-conflicts|Targets |Total Installed Size: |Net Upgrade Size: |Proceed with installation|checking package integrity|loading package files|checking available disk space|installing |upgrading |warning:.*is up to date -- reinstalling|Optional dependencies for|    )/||/^$/||print'
+	check_exit
+	echo "$PKGID $PSUF" > $BUILD_ROOT/installed-pkg/$PKG
 	continue
     fi
 
@@ -1076,6 +1144,7 @@ for DIR in /usr/share/doc/packages \
 done
 
 for FILE in /var/run/utmp /var/log/wtmp /etc/fstab ; do
+    mkdir -p $BUILD_ROOT/${FILE%/*}
     touch $BUILD_ROOT/$FILE
 done
 

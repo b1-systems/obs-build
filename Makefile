@@ -38,6 +38,7 @@ install:
 	    killchroot \
 	    getmacros \
 	    getoptflags \
+	    gettype \
 	    getchangetarget \
 	    common_functions \
 	    init_buildsystem \
@@ -48,6 +49,7 @@ install:
 	    debtransformzip \
 	    mkbaselibs \
 	    mkdrpms \
+	    createarchdeps \
 	    createrepomddeps \
 	    createyastdeps \
 	    changelog2spec \

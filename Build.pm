@@ -10,19 +10,24 @@ our $expand_dbg;
 our $do_rpm;
 our $do_deb;
 our $do_kiwi;
+our $do_arch;
 
 sub import {
   for (@_) {
     $do_rpm = 1 if $_ eq ':rpm';
     $do_deb = 1 if $_ eq ':deb';
     $do_kiwi = 1 if $_ eq ':kiwi';
+    $do_arch = 1 if $_ eq ':arch';
   }
-  $do_rpm = $do_deb = $do_kiwi = 1 if !$do_rpm && !$do_deb && !$do_kiwi;
+  $do_rpm = $do_deb = $do_kiwi = $do_arch = 1 if !$do_rpm && !$do_deb && !$do_kiwi && !$do_arch;
   if ($do_deb) {
     require Build::Deb;
   }
   if ($do_kiwi) {
     require Build::Kiwi;
+  }
+  if ($do_arch) {
+    require Build::Arch;
   }
 }
 
@@ -289,12 +294,14 @@ sub read_config {
     s/=$// for @{$config->{'substitute'}->{$l}};
   }
   init_helper_hashes($config);
-  if ( ! $config->{'type'}) {
+  if (!$config->{'type'}) {
     # Fallback to old guessing method if no type (spec, dsc or kiwi) is defined
     if (grep {$_ eq 'rpm'} @{$config->{'preinstall'} || []}) {
       $config->{'type'} = 'spec';
     } elsif (grep {$_ eq 'debianutils'} @{$config->{'preinstall'} || []}) {
       $config->{'type'} = 'dsc';
+    } elsif (grep {$_ eq 'pacman'} @{$config->{'preinstall'} || []}) {
+      $config->{'type'} = 'arch';
     } else {
       $config->{'type'} = 'UNDEFINED';
     }
@@ -358,6 +365,7 @@ sub do_subst_vers {
   return @res;
 }
 
+# Delivers all packages which get used for building
 sub get_build {
   my ($config, $subpacks, @deps) = @_;
   my @ndeps = grep {/^-/} @deps;
@@ -377,6 +385,7 @@ sub get_build {
   return @deps;
 }
 
+# Delivers all packages which shall have an influence to other package builds (get_build reduced by support packages)
 sub get_deps {
   my ($config, $subpacks, @deps) = @_;
   my @ndeps = grep {/^-/} @deps;
@@ -854,6 +863,7 @@ sub parse {
   return Build::Deb::parse($cf, $fn, @args) if $do_deb && $fn =~ /\.dsc$/;
   return Build::Kiwi::parse($cf, $fn, @args) if $do_kiwi && $fn =~ /config\.xml$/;
   return Build::Kiwi::parse($cf, $fn, @args) if $do_kiwi && $fn =~ /\.kiwi$/;
+  return Build::Arch::parse($cf, $fn, @args) if $do_arch && $fn =~ /PKGBUILD$/;
   return undef;
 }
 
@@ -867,6 +877,8 @@ sub query {
   return Build::Rpm::query($handle, %opts) if $do_rpm && $binname =~ /\.rpm$/;
   return Build::Deb::query($handle, %opts) if $do_deb && $binname =~ /\.deb$/;
   return Build::Kiwi::queryiso($handle, %opts) if $do_kiwi && $binname =~ /\.iso$/;
+  return Build::Arch::query($handle, %opts) if $do_arch && $binname =~ /\.pkg\.tar(?:\.gz|\.xz)?$/;
+  return Build::Arch::query($handle, %opts) if $do_arch && $binname =~ /\.arch$/;
   return undef;
 }
 
@@ -877,6 +889,8 @@ sub queryhdrmd5 {
   return Build::Kiwi::queryhdrmd5(@_) if $do_kiwi && $binname =~ /\.iso$/;
   return Build::Kiwi::queryhdrmd5(@_) if $do_kiwi && $binname =~ /\.raw$/;
   return Build::Kiwi::queryhdrmd5(@_) if $do_kiwi && $binname =~ /\.raw.install$/;
+  return Build::Arch::queryhdrmd5(@_) if $do_arch && $binname =~ /\.pkg\.tar(?:\.gz|\.xz)?$/;
+  return Build::Arch::queryhdrmd5(@_) if $do_arch && $binname =~ /\.arch$/;
   return undef;
 }
 
