@@ -762,9 +762,7 @@ setup_sys_root()
 		for LINK in $(find $BUILD_ROOT/$SYSROOT_PATH -type l); do
 			local TARGET=$(readlink $LINK)
 			if [[ $TARGET == /* ]]; then
-				# only fix links on normal files and directories
-				[[ -f /$SYSROOT_PATH$TARGET || -d /$SYSROOT_PATH$TARGET ]] || continue
-				ln -fs /$SYSROOT_PATH$TARGET $LINK || fail_exit 1
+				ln -fs /$SYSROOT_PATH$TARGET $LINK 2> /dev/null 
 			fi
 		done
 	done
