@@ -215,6 +215,7 @@ sub read_config {
   $config->{'noconflict'} = [];
   # array with package that will get cross substituted
   $config->{'crosssubst'} = [];
+  $config->{'nocrossbuild'} = [];
 
   for my $l (@spec) {
     $l = $l->[1] if ref $l;
@@ -232,7 +233,7 @@ sub read_config {
       }
       next;
     }
-    if ($l0 eq 'preinstall:' || $l0 eq 'vminstall:' || $l0 eq 'cbpreinstall:' || $l0 eq 'cbinstall:' || $l0 eq 'required:' || $l0 eq 'support:' || $l0 eq 'keep:' || $l0 eq 'prefer:' || $l0 eq 'ignore:' || $l0 eq 'conflict:' || $l0 eq 'runscripts:') {
+    if ($l0 eq 'preinstall:' || $l0 eq 'vminstall:' || $l0 eq 'cbpreinstall:' || $l0 eq 'cbinstall:' || $l0 eq 'required:' || $l0 eq 'support:' || $l0 eq 'keep:' || $l0 eq 'prefer:' || $l0 eq 'ignore:' || $l0 eq 'conflict:' || $l0 eq 'runscripts:' || $l0 eq 'nocrossbuild:') {
       my $t = substr($l0, 0, -1);
       for my $l (@l) {
 	if ($l eq '!*') {
@@ -318,7 +319,7 @@ sub read_config {
       warn("unknown keyword in config: $l0\n");
     }
   }
-  for my $l (qw{preinstall vminstall cbpreinstall cbinstall required support keep runscripts repotype patterntype}) {
+  for my $l (qw{preinstall vminstall cbpreinstall cbinstall required support keep runscripts repotype patterntype nocrossbuild}) {
     $config->{$l} = [ unify(@{$config->{$l}}) ];
   }
   for my $l (keys %{$config->{'substitute'}}) {
@@ -534,6 +535,11 @@ sub get_runscripts {
 sub get_supports {
   my ($config) = @_;
   return @{$config->{'support'}};
+}
+
+sub get_nocrossbuild {
+  my ($config) = @_;
+  return @{$config->{'nocrossbuild'}};
 }
 
 sub get_nosupports {
