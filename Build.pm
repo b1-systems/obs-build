@@ -403,12 +403,15 @@ sub do_subst_vers {
     #
     my $is_cross_subst = 0;
     if ($subst->{$d}) {
-      $is_cross_subst = 1 if grep {$_ =~ /\[/} @{$subst->{$d}};
+      $is_cross_subst = 1 if grep {defined($_) && $_ =~ /\[/} @{$subst->{$d}};
     }
 
     if ($subst->{$d} && ( not $is_cross_subst || $is_buildrequires ) ) {
       unshift @deps, map {defined($_) && $_ eq '=' ? $dv : $_} @{$subst->{$d}};
       push @res, $d, $dv if grep {defined($_) && $_ eq $d} @{$subst->{$d}};
+    } elsif ($is_cross_subst) {
+      # crossbuild substitutions will not be pushed to results list
+      # they must not be ending up as requirements in the spec file
     } else {
       push @res, $d, $dv;
     }
