@@ -2181,10 +2181,10 @@ for SPECFILE in "${SPECFILES[@]}" ; do
 	fi
 	if [ -n "$CROSSBUILD" ] ; then
 		rpmbopts[${#rpmbopts[@]}]='--root'
-		rpmbopts[${#rpmbopts[@]}]="/$SYSROOT_TARGET"
+		rpmbopts[${#rpmbopts[@]}]="$SYSROOT_TARGET"
 
                 rpmbopts[${#rpmbopts[@]}]='--buildroot'
-                rpmbopts[${#rpmbopts[@]}]="/$TOPDIR/BUILDROOT"
+                rpmbopts[${#rpmbopts[@]}]="$TOPDIR/BUILDROOT"
 	fi
 
 	rpmbuild=rpmbuild
