@@ -275,6 +275,40 @@ sub read_pkgs_rpmdb {
   return \@rpms;
 }
 
+sub parse_debian_copyright_file {
+  my ($root, $pkg) = @_;
+  my $found = 0;
+  my $formatfound = 0;
+  my %ret;
+  my $file = "$root/usr/share/doc/$pkg/copyright";
+  local *F;
+  if (open(F, '<', $file)) {
+    while(<F>) {
+      if ($_ =~ /Format: https:\/\/www.debian.org\/doc\/packaging-manuals\/copyright-format\/1.0\// or $formatfound ) {
+        $formatfound = 1
+      } else {
+        last;
+      }
+      if ($_ =~ /Files: \*/) {
+        $found = 1;
+      }
+      if ($_ =~ /Copyright:\s*(.+)\n/) {
+        push(@{$ret{'copyright'}}, $1);
+      } elsif ($_ =~ /^\s{2,}(.*)\n/ ) {
+        push(@{$ret{'copyright'}}, $1);
+      } elsif ($_ =~ /License:\s*(.+)\n/) {
+        # TODO licenses has to match https://spdx.org/licenses/
+        $ret{'license'} = $1;
+      } elsif ($_ =~ /^\n/ and $found ) {
+        last;
+      }
+    }
+  } else {
+    %ret = undef;
+  }
+  return \%ret;
+}
+
 sub read_pkgs_deb {
   my ($root, $vendorstring) = @_;
   my @pkgs;
@@ -283,21 +317,24 @@ sub read_pkgs_deb {
     my $ctrl = '';
     while(<F>) {
       if ($_ eq "\n") {
-	my %res = Build::Deb::control2res($ctrl);
-	if (defined($res{'PACKAGE'})) {
-	  my $data = {'NAME' => $res{'PACKAGE'}};
-	  $res{'VERSION'} =~ /^(?:(\d+):)?(.*?)(?:-([^-]*))?$/s;
-	  $data->{'EPOC'} = $1 if defined $1;
-	  $data->{'VERSION'} = $2;
-	  $data->{'RELEASE'} = $3 if defined $3;
-	  $data->{'ARCH'} = $res{'ARCHITECTURE'};
-	  $data->{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
-	  $data->{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
-      $data->{'VENDOR'} = $vendorstring if $vendorstring ne "";
-	  push @pkgs, $data;
-	}
+        my %res = Build::Deb::control2res($ctrl);
+        if (defined($res{'PACKAGE'})) {
+          my $data = {'NAME' => $res{'PACKAGE'}};
+          $res{'VERSION'} =~ /^(?:(\d+):)?(.*?)(?:-([^-]*))?$/s;
+          $data->{'EPOC'} = $1 if defined $1;
+          $data->{'VERSION'} = $2;
+          $data->{'RELEASE'} = $3 if defined $3;
+          $data->{'ARCH'} = $res{'ARCHITECTURE'};
+          $data->{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
+          $data->{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
+          $data->{'VENDOR'} = $vendorstring if $vendorstring ne "";
+          my $license = parse_debian_copyright_file($root, $res{'PACKAGE'});
+          $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
+          $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
+          push @pkgs, $data;
+        }
         $ctrl = '';
-	next;
+        next;
       }
       $ctrl .= $_;
     }
@@ -533,6 +570,10 @@ sub spdx_encode_pkg {
     $spdx->{'licenseDeclared'} = $license;
   }
   $spdx->{'copyrightText'} = 'NOASSERTION';
+  my $copyrightText = $p->{'COPYRIGHTTEXT'};
+  if ($copyrightText) {
+    $spdx->{'copyrightText'} = $copyrightText;
+  }
   $spdx->{'homepage'} = $p->{'URL'} if $p->{'URL'};
   my $purlurl = gen_purl($p, $distro, $type);
   push @{$spdx->{'externalRefs'}}, { 'referenceCategory' => 'PACKAGE-MANAGER', 'referenceType' => 'purl', 'referenceLocator', $purlurl } if $purlurl;
