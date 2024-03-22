@@ -278,6 +278,7 @@ sub read_pkgs_rpmdb {
 sub parse_debian_copyright_file {
   my ($root, $pkg) = @_;
   my $found = 0;
+  my $crfound = 0;
   my $formatfound = 0;
   my %ret;
   my $file = "$root/usr/share/doc/$pkg/copyright";
@@ -291,10 +292,12 @@ sub parse_debian_copyright_file {
       }
       if ($_ =~ /Files: \*/) {
         $found = 1;
+        $crfound = 0;
       }
       if ($_ =~ /Copyright:\s*(.+)\n/) {
+        $crfound = 1;
         push(@{$ret{'copyright'}}, $1);
-      } elsif ($_ =~ /^\s{2,}(.*)\n/ ) {
+      } elsif ($_ =~ /^\s{2,}(.*)\n/ and $crfound ) {
         push(@{$ret{'copyright'}}, $1);
       } elsif ($_ =~ /License:\s*(.+)\n/) {
         # TODO licenses has to match https://spdx.org/licenses/
@@ -307,6 +310,22 @@ sub parse_debian_copyright_file {
     %ret = undef;
   }
   return \%ret;
+}
+sub read_built_using_deb {
+  my ($root, $pkgs) = @_;
+  # in extra funktion übergeben, dort nach Komma trennen, Version steht hinter Namen in (). Dann direkt nach @pkgs pushen
+  my @pkgs;
+  foreach my $bd (split /,\s*/, $pkgs) {
+    if ($bd =~ /(.*)\s*\(=\s*(.*)\)/) {
+      my $pkg = {'NAME' => "$1"};
+      $pkg->{'VERSION'} = "$2";
+      my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
+      $pkg->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
+      $pkg->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
+      push @pkgs, $pkg;
+      }
+    }
+  return @pkgs;
 }
 
 sub read_pkgs_deb {
@@ -332,6 +351,9 @@ sub read_pkgs_deb {
           $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
           $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
           push @pkgs, $data;
+          if ($res{'BUILT-USING'}) {
+              push @pkgs, read_built_using_deb($root, $res{'BUILT-USING'});
+          }
         }
         $ctrl = '';
         next;
