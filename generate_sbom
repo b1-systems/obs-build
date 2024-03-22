@@ -313,7 +313,6 @@ sub parse_debian_copyright_file {
 }
 sub read_built_using_deb {
   my ($root, $pkgs) = @_;
-  # in extra funktion übergeben, dort nach Komma trennen, Version steht hinter Namen in (). Dann direkt nach @pkgs pushen
   my @pkgs;
   foreach my $bd (split /,\s*/, $pkgs) {
     if ($bd =~ /(.*)\s*\(=\s*(.*)\)/) {
@@ -351,7 +350,9 @@ sub read_pkgs_deb {
           $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
           $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
           push @pkgs, $data;
-          if ($res{'BUILT-USING'}) {
+          if ($res{'STATIC-BUILT-USING'}) {
+              push @pkgs, read_built_using_deb($root, $res{'STATIC-BUILT-USING'});
+          } elsif ($res{'BUILT-USING'}) {
               push @pkgs, read_built_using_deb($root, $res{'BUILT-USING'});
           }
         }
