@@ -315,7 +315,7 @@ sub read_built_using_deb {
   my ($root, $pkgs) = @_;
   my @pkgs;
   foreach my $bd (split /,\s*/, $pkgs) {
-    if ($bd =~ /(.*)\s*\(=\s*(.*)\)/) {
+    if ($bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/) {
       my $pkg = {'NAME' => "$1"};
       $pkg->{'VERSION'} = "$2";
       my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
