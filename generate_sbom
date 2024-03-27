@@ -300,7 +300,7 @@ sub parse_debian_copyright_file {
       } elsif ($_ =~ /^\s{2,}(.*)\n/ and $crfound ) {
         push(@{$ret{'copyright'}}, $1);
       } elsif ($_ =~ /License:\s*(.+)\n/) {
-        # TODO licenses has to match https://spdx.org/licenses/
+        # TODO licenses has to match https://spdx.org/licenses/?
         $ret{'license'} = $1;
       } elsif ($_ =~ /^\n/ and $found ) {
         last;
@@ -310,21 +310,6 @@ sub parse_debian_copyright_file {
     %ret = undef;
   }
   return \%ret;
-}
-sub read_built_using_deb {
-  my ($root, $pkgs) = @_;
-  my @pkgs;
-  foreach my $bd (split /,\s*/, $pkgs) {
-    if ($bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/) {
-      my $pkg = {'NAME' => "$1"};
-      $pkg->{'VERSION'} = "$2";
-      my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
-      $pkg->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
-      $pkg->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
-      push @pkgs, $pkg;
-      }
-    }
-  return @pkgs;
 }
 
 sub read_pkgs_deb {
@@ -350,10 +335,22 @@ sub read_pkgs_deb {
           $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
           $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
           push @pkgs, $data;
+          my @bupkgs;
           if ($res{'STATIC-BUILT-USING'}) {
-              push @pkgs, read_built_using_deb($root, $res{'STATIC-BUILT-USING'});
+              @bupkgs = (split /,\s*/, $res{'STATIC-BUILT-USING'});
           } elsif ($res{'BUILT-USING'}) {
-              push @pkgs, read_built_using_deb($root, $res{'BUILT-USING'});
+              @bupkgs = (split /,\s*/, $res{'BUILT-USING'});
+          }
+          foreach my $bd (@bupkgs) {
+            if ($bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/) {
+              my $pkg = {'NAME' => "$1"};
+              $pkg->{'VERSION'} = "$2";
+              my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
+              $pkg->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
+              $pkg->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
+              $pkg->{'VENDOR'} = $vendorstring if $vendorstring ne "";
+              push @pkgs, $pkg;
+            }
           }
         }
         $ctrl = '';
