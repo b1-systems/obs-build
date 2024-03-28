@@ -764,6 +764,9 @@ if ($isproduct) {
   if (grep { $_ eq "debian" } @{$dist->{'id_like'}} or $dist->{'id'} eq "debian" ) {
     $pkgtype = "deb";
     $pkgs = read_pkgs_deb($toprocess, $vendorstring);
+    if (queryconfig('buildflags', 'spdx-files-generation') ne "no") {
+      $files = gen_filelist($toprocess) if $format eq 'spdx';
+    }
   } else {
     $pkgtype = "rpm";
     dump_rpmdb($toprocess, "$tmpdir/rpmdb");
