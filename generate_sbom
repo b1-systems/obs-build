@@ -588,7 +588,11 @@ sub spdx_encode_pkg {
   if ($license) {
     $license =~ s/ and / AND /g;
     $spdx->{'licenseConcluded'} = $license;
-    $spdx->{'licenseDeclared'} = $license;
+    if (queryconfig('buildflags', 'spdx-declared-license')eq "NOASSERTION") {
+      $spdx->{'licenseDeclared'} = 'NOASSERTION';
+    } else {
+      $spdx->{'licenseDeclared'} = $license;
+    }
   }
   $spdx->{'copyrightText'} = 'NOASSERTION';
   my $copyrightText = $p->{'COPYRIGHTTEXT'};
@@ -639,10 +643,12 @@ sub spdx_encode_header {
 }
 
 sub queryconfig {
-  my ($type, $param) = @_;
+  my ($type, $argument) = @_;
   my $cf = Build::read_config_dist($::ENV{'BUILD_DIST'}, $::ENV{'BUILD_ARCH'}, $::ENV{'CONFIG_DIR'});
   if ($type eq 'eval') {
-    return Build::Rpm::expandmacros($cf, $param);
+    return Build::Rpm::expandmacros($cf, $argument) || "";
+  } elsif ($type eq 'buildflags') {
+      return $cf->{"buildflags:$argument"} || "";
   }
 }
 
