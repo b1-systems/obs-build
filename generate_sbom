@@ -840,7 +840,7 @@ if ($format eq 'spdx') {
   $intoto_type = 'https://cyclonedx.org/bom';
   $doc = cyclonedx_encode_header($subjectname);
   for my $p (@$pkgs) {
-    push @{$doc->{'components'}}, cyclonedx_encode_pkg($p, $distro);
+    push @{$doc->{'components'}}, cyclonedx_encode_pkg($p, $distro, $pkgtype);
   }
   if ($dist && %$dist) {
     push @{$doc->{'components'}}, cyclonedx_encode_dist($dist);
