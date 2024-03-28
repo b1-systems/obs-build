@@ -32,6 +32,7 @@ use File::Temp;
 use Digest::SHA;
 use Digest::MD5;
 
+use Build;
 use Build::Rpm;
 use Build::Deb;
 use Build::SimpleJSON;
@@ -637,6 +638,14 @@ sub spdx_encode_header {
   return $spdx;
 }
 
+sub queryconfig {
+  my ($type, $param) = @_;
+  my $cf = Build::read_config_dist($::ENV{'BUILD_DIST'}, $::ENV{'BUILD_ARCH'}, $::ENV{'CONFIG_DIR'});
+  if ($type eq 'eval') {
+    return Build::Rpm::expandmacros($cf, $param);
+  }
+}
+
 ##################################################################################################
 
 
@@ -647,7 +656,7 @@ my $istar;
 my $distro;
 my $rpmmd;
 my $format;
-my $vendorstring = "";
+my $vendorstring=queryconfig('eval','%vendor');
 
 while (@ARGV && $ARGV[0] =~ /^-/) {
   my $opt = shift @ARGV;
@@ -665,8 +674,6 @@ while (@ARGV && $ARGV[0] =~ /^-/) {
     $istar = 1;
   } elsif ($opt eq '--format') {
     $format = shift @ARGV;
-  } elsif ($opt eq '--vendor') {
-    $vendorstring = shift @ARGV;
   } elsif ($opt eq '--help') {
     echo_help();
     exit(0);
@@ -715,11 +722,6 @@ Supported content
   --container-archive CONTAINER_ARCHIVE
      An container providing a system
 
-Optional parameters
-===================
-
-  --vendor VENDOR
-     The vendor string to be set when deb packages are used.
 ";
 }
 die("usage: generate_sbom [--distro NAME] [--format spdx|cyclonedx] [--intoto] [--dir DIRECTORY]|[--product DIRECTORY]|[--rpmmd DIRECTORY]|[--container-archive CONTAINER_ARCHIVE]\n") unless @ARGV == 1;

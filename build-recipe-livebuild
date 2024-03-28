@@ -265,10 +265,9 @@ recipe_build_livebuild() {
     done
 
     for format in $(queryconfig --dist "$BUILD_DIST" --configdir "$CONFIG_DIR" --archpath "$BUILD_ARCH" buildflags+ sbom | sort -u) ; do
-        vendormacro=$(queryconfig --dist "$BUILD_DIST" --configdir "$CONFIG_DIR" --archpath "$BUILD_ARCH" eval %vendor || "")
         echo "Generating $format sbom file"
 	    pushd $BUILD_ROOT/$TOPDIR/$LIVEBUILD_ROOT >/dev/null
-        generate_sbom --format "$format" --vendor "$vendormacro" --dir "chroot"  > "$BUILD_ROOT/$TOPDIR/OTHER/${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json"
+        generate_sbom --format "$format" --dir "chroot"  > "$BUILD_ROOT/$TOPDIR/OTHER/${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json"
 	    popd >/dev/null
 	    pushd $BUILD_ROOT/$TOPDIR/OTHER >/dev/null
         /usr/bin/sha256sum "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json" > "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json".sh256
