@@ -270,7 +270,7 @@ recipe_build_livebuild() {
         generate_sbom --format "$format" --dir "chroot"  > "$BUILD_ROOT/$TOPDIR/OTHER/${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json"
 	    popd >/dev/null
 	    pushd $BUILD_ROOT/$TOPDIR/OTHER >/dev/null
-        /usr/bin/sha256sum "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json" > "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json".sh256
+        /usr/bin/sha256sum "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json" > "${RECIPEFILE%.livebuild}${buildnum}.${format/cyclonedx/cdx}.json".sha256
 	    popd >/dev/null
      done
 
