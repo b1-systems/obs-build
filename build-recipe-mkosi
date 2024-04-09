@@ -93,8 +93,27 @@ recipe_build_mkosi() {
     if [ -n "$RELEASE" ]; then
         image_version="--image-version=${RELEASE}"
     fi
+
+    for format in $(queryconfig --dist "$BUILD_DIST" --configdir "$CONFIG_DIR" --archpath "$BUILD_ARCH" buildflags+ sbom | sort -u) ; do
+cat << EOF >> $BUILD_ROOT/$TOPDIR/SOURCES/mkosi.clean
+#!/bin/bash
+echo "Generating $format sbom file"
+imgname=$(basename $TOPDIR/OTHER/*/*.manifest)
+imgname=${imgname%.manifest}
+pushd $TOPDIR/$LIVEBUILD_ROOT >/dev/null
+/.build/generate_sbom --format "$format" --dir \$BUILDROOT  > "$TOPDIR/OTHER/${imgname}${buildnum}.${format/cyclonedx/cdx}.json"
+popd >/dev/null
+pushd $TOPDIR/OTHER >/dev/null
+/usr/bin/sha256sum "${imgname}${buildnum}.${format/cyclonedx/cdx}.json" > "${imgname}${buildnum}.${format/cyclonedx/cdx}.json".sh256
+popd >/dev/null
+EOF
+chmod +x $BUILD_ROOT/$TOPDIR/SOURCES/mkosi.clean
+     done
+
+    cat $BUILD_ROOT/$TOPDIR/SOURCES/mkosi.clean
+
     chroot "$BUILD_ROOT" sh -c \
-        "cd $TOPDIR/SOURCES && mkosi --default $RECIPEFILE $RELEASE_ARG $image_version --nspawn-keep-unit --output-dir $TOPDIR/OTHER --checksum --repository-key-check=no --with-network=never --local-mirror file:///.build.binaries/ --cache /.build.binaries/ build" \
+        "cd $TOPDIR/SOURCES && mkosi --default $RECIPEFILE $RELEASE_ARG $image_version --nspawn-keep-unit --output-dir $TOPDIR/OTHER --checksum --repository-key-check=no --with-network=never --local-mirror file:///.build.binaries/ --cache /.build.binaries/ --finalize-script ./mkosi.clean build" \
         || cleanup_and_exit 1
 
     # move the output files from the subdirectory, as only files in the OTHER/ directory
