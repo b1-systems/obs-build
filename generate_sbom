@@ -285,6 +285,7 @@ sub parse_debian_copyright_file {
   my $file = "$root/usr/share/doc/$pkg/copyright";
   local *F;
   if (open(F, '<', $file)) {
+    my @copyright;
     while(<F>) {
       if ($_ =~ /Format: https:\/\/www.debian.org\/doc\/packaging-manuals\/copyright-format\/1.0\// or $formatfound ) {
         $formatfound = 1
@@ -297,9 +298,9 @@ sub parse_debian_copyright_file {
       }
       if ($_ =~ /Copyright:\s*(.+)\n/) {
         $crfound = 1;
-        push(@{$ret{'copyright'}}, $1);
+        push(@copyright, $1);
       } elsif ($_ =~ /^\s{2,}(.*)\n/ and $crfound ) {
-        push(@{$ret{'copyright'}}, $1);
+        push(@copyright, $1);
       } elsif ($_ =~ /License:\s*(.+)\n/) {
         # TODO licenses has to match https://spdx.org/licenses/?
         $ret{'license'} = $1;
@@ -307,6 +308,7 @@ sub parse_debian_copyright_file {
         last;
       }
     }
+    $ret{'copyright'} = join(', ', @copyright);
   } else {
     %ret = undef;
   }
