@@ -318,6 +318,7 @@ sub parse_debian_copyright_file {
 sub read_pkgs_deb {
   my ($root, $vendorstring) = @_;
   my @pkgs;
+  my %pkg_version; # hash to save pkg-version combination already in
   local *F;
   if (open(F, '<', "$root/var/lib/dpkg/status")) {
     my $ctrl = '';
@@ -327,17 +328,20 @@ sub read_pkgs_deb {
         if (defined($res{'PACKAGE'})) {
           my $data = {'NAME' => $res{'PACKAGE'}};
           $res{'VERSION'} =~ /^(?:(\d+):)?(.*?)(?:-([^-]*))?$/s;
-          $data->{'EPOC'} = $1 if defined $1;
-          $data->{'VERSION'} = $2;
-          $data->{'RELEASE'} = $3 if defined $3;
-          $data->{'ARCH'} = $res{'ARCHITECTURE'};
-          $data->{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
-          $data->{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
-          $data->{'VENDOR'} = $vendorstring if $vendorstring ne "";
-          my $license = parse_debian_copyright_file($root, $res{'PACKAGE'});
-          $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
-          $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
-          push @pkgs, $data;
+          if (!$pkg_version{$data->{'NAME'}}{$data->{'VERSION'}}) {
+            $data->{'EPOC'} = $1 if defined $1;
+            $data->{'VERSION'} = $2;
+            $data->{'RELEASE'} = $3 if defined $3;
+            $data->{'ARCH'} = $res{'ARCHITECTURE'};
+            $data->{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
+            $data->{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
+            $data->{'VENDOR'} = $vendorstring if $vendorstring ne "";
+            my $license = parse_debian_copyright_file($root, $res{'PACKAGE'});
+            $data->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
+            $data->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
+            $pkg_version{$data->{'NAME'}}{$data->{'VERSION'}} = 1;
+            push @pkgs, $data;
+          }
           my @bupkgs;
           if ($res{'STATIC-BUILT-USING'}) {
               @bupkgs = (split /,\s*/, $res{'STATIC-BUILT-USING'});
@@ -348,11 +352,14 @@ sub read_pkgs_deb {
             if ($bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/) {
               my $pkg = {'NAME' => "$1"};
               $pkg->{'VERSION'} = "$2";
-              my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
-              $pkg->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
-              $pkg->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
-              $pkg->{'VENDOR'} = $vendorstring if $vendorstring ne "";
-              push @pkgs, $pkg;
+              if (!$pkg_version{$pkg->{'NAME'}}{$pkg->{'VERSION'}}) {
+                my $license = parse_debian_copyright_file($root, $pkg->{'NAME'});
+                $pkg->{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
+                $pkg->{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
+                $pkg->{'VENDOR'} = $vendorstring if $vendorstring ne "";
+                $pkg_version{$pkg->{'NAME'}}{$pkg->{'VERSION'}} = 1;
+                push @pkgs, $pkg;
+              }
             }
           }
         }
