@@ -325,6 +325,9 @@ sub parse_debian_copyright_file {
   my $formatfound = 0;
   my %ret;
   my $file = "$root/usr/share/doc/$pkg/copyright";
+  if ( -l $file ) {
+      $file = $root . readlink $file;
+  }
   local *F;
   if (open(F, '<', $file)) {
     my @copyright;
