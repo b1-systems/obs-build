@@ -48,7 +48,7 @@ sub create {
     'builddir' => $builddir,
     'block' => undef,		# block strategy   (all,never)
     'rebuild' => undef,		# rebuild strategy (transitive,direct,local)
-    'debuginfo' => 1,		# create debug packages?
+    'debuginfo' => defined($opts->{'debuginfo'}) ? $opts->{'debuginfo'} : 1,	# create debug packages?
     'genmetaalgo' => $genmetaalgo,
     'lastcheck' => {},
     'metacache' => {},
@@ -728,7 +728,7 @@ sub handlecycle {
     my $notready = $ctx->{'notready'};
     my $pkgsrc = $ctx->{'pkgsrc'};
     if (grep {$notready->{$_->{'name'} || $_->{'pkg'}}} map {$pkgsrc->{$_}} @cycp) {
-      $notready->{$_->{'name'} || $_->{'pkg'}} ||= 1 for @cycp;
+      $notready->{$_->{'name'} || $_->{'pkg'}} ||= 1 for map {$pkgsrc->{$_}} @cycp;
     }
     return (undef, 3);
   }
