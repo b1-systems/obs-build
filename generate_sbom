@@ -278,14 +278,12 @@ sub read_pkgs_rpmdb {
 
 sub spdx_license_mapping {
   my ($mappingfile) = @_;
-  print ("mappingfile: ", $mappingfile, "\n");
   # read in file, format:
   # "license in file"=>"license in spdx"
   my %license_mapping;
   local *F;
   if (open(F, '<', $mappingfile)) {
     while(<F>) {
-      print $_, "\n";
       next if $_ =~ /^\s*#/;
       if ($_ =~ /^"(.*)"=>"(.*)"$/ ) {
           $license_mapping{$1} = $2;
@@ -312,7 +310,7 @@ sub map_license {
   } elsif (defined $license_mapping->{$license}) {
     $license = $license_mapping->{$license};
   } else {
-      warn("License not found in mapping: $license\n");
+      warn("SPDX-License-Mapping: License not found in mapping: $license\n");
   }
   return $license;
 }
