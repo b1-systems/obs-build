@@ -811,8 +811,6 @@ my $license_mappings_file = queryconfig('buildflags', 'spdx-license-mapping') ||
 my $license_mapping = {};
 if ( $license_mappings_file ne "" ) {
   $license_mapping = spdx_license_mapping($toprocess . $license_mappings_file);
-  use Data::Dumper;
-  print Dumper($license_mapping);
 }
 
 
