@@ -310,7 +310,7 @@ sub map_license {
   } elsif (defined $license_mapping->{$license}) {
     $license = $license_mapping->{$license};
   } else {
-      warn("SPDX-License-Mapping: License not found in mapping: $license\n");
+    warn("SPDX-License-Mapping: License not found in mapping: $license\n");
   }
   return $license;
 }
