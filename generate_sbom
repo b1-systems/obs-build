@@ -720,7 +720,13 @@ sub queryconfig {
   if ($type eq 'eval') {
     return Build::Rpm::expandmacros($cf, $argument) || "";
   } elsif ($type eq 'buildflags') {
-      return $cf->{"buildflags:$argument"} || "";
+    return $cf->{"buildflags:$argument"} || "";
+  } elsif ($type eq 'buildflags+') {
+    my @r = ();
+    for (@{$cf->{'buildflags'} || ()}) {
+      push(@r, $1) if /\Q$argument\E:(.*)/;
+    }
+    return @r;
   }
 }
 
@@ -807,10 +813,11 @@ my $toprocess = $ARGV[0];
 
 my $tmpdir = File::Temp::tempdir( CLEANUP => 1 );
 
-my $license_mappings_file = queryconfig('buildflags', 'spdx-license-mapping') || "";
+my @license_mapping_files = queryconfig('buildflags+', 'spdx-license-mapping');
 my $license_mapping = {};
-if ( $license_mappings_file ne "" ) {
-  $license_mapping = spdx_license_mapping($toprocess . $license_mappings_file);
+foreach ( @license_mapping_files ) {
+  my $href = spdx_license_mapping($toprocess . $_);
+  %$license_mapping = (%$license_mapping, %$href);
 }
 
 
