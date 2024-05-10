@@ -355,8 +355,11 @@ sub parse_debian_copyright_file {
       } elsif ($_ =~ /^License:\s*(.+)\n/) {
         $filesfound = 0;
         $crfound = 0;
-        # TODO licenses has to match https://spdx.org/licenses/?
-        push(@license, map_license($1, $license_mapping));
+        if ( keys %$license_mapping ) {
+            push(@license, map_license($1, $license_mapping));
+        } else {
+            push(@license, $1);
+        }
       } elsif ($_ =~ /^(Comment|Disclaimer|Source|Upstream-Name|Upstream-Contact):/) {
         $filesfound = 0;
         $crfound = 0;
