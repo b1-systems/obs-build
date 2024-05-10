@@ -353,8 +353,11 @@ sub parse_debian_copyright_file {
       push @copyright, $1 if $1 ne '';
     } elsif (/^License:\s*(.*)$/) {
       $crfound = 0;
-      # TODO licenses has to match https://spdx.org/licenses/?
-      push @license, $1 if $1 ne '';
+      if (keys %$license_mapping) {
+        push @license, map_license($1, $license_mapping) if $1 ne '';
+      } else {
+        push @license, $1 if $1 ne '';
+      }
     } elsif (/^(Files|Comment|Disclaimer|Source|Upstream-Name|Upstream-Contact):/) {
       $crfound = 0;
     } elsif (/^\s{1,}(.*)$/ and $crfound) {
@@ -372,7 +375,7 @@ sub parse_debian_copyright_file {
 }
 
 sub read_deb {
-  my ($root, $ctrl) = @_;
+  my ($root, $ctrl, $license_mapping) = @_;
   my %res = Build::Deb::control2res($ctrl);
   return undef unless defined($res{'PACKAGE'}) && defined($res{'VERSION'});
   my %data;
@@ -386,7 +389,7 @@ sub read_deb {
   $data{'ARCH'} = $res{'ARCHITECTURE'} if defined $res{'ARCHITECTURE'};
   $data{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
   $data{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
-  my $license = parse_debian_copyright_file($root, $data{'NAME'});
+  my $license = parse_debian_copyright_file($root, $data{'NAME'}, $license_mapping);
   $data{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
   $data{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
   if ($res{'STATIC-BUILT-USING'}) {
@@ -398,14 +401,14 @@ sub read_deb {
 }
 
 sub read_deb_bu {
-  my ($root, $name, $evr) = @_;
+  my ($root, $name, $evr, $license_mapping) = @_;
   my %data = ( 'NAME' => $name, 'EVR' => $evr );
   if ($evr =~ /^(?:(\d+):)?(.*?)(?:-([^-]*))?$/s) {
     $data{'EPOCH'} = $1 if defined $1;
     $data{'VERSION'} = $2;
     $data{'RELEASE'} = $3 if defined $3;
   }
-  my $license = parse_debian_copyright_file($root, $name);
+  my $license = parse_debian_copyright_file($root, $name, $license_mapping);
   $data{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
   $data{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
   return \%data;
@@ -422,7 +425,7 @@ sub read_pkgs_deb {
     my $ctrl = '';
     while(<F>) {
       if ($_ eq "\n") {
-	my $data = read_deb($root, $ctrl);
+	my $data = read_deb($root, $ctrl, $license_mapping);
 	if ($data) {
 	  $data->{'VENDOR'} = $vendorstring if $vendorstring;
 	  push @pkgs, $data;
@@ -440,7 +443,7 @@ sub read_pkgs_deb {
   for my $bd (@bupkgs) {
     next unless $bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/;
     next if $seen_pkg{"$1-$2"};
-    my $data = read_deb_bu($root, $1, $2);
+    my $data = read_deb_bu($root, $1, $2, $license_mapping);
     if ($data) {
       $data->{'VENDOR'} = $vendorstring if $vendorstring;
       push @pkgs, $data;
@@ -828,7 +831,7 @@ my $pkgtype = 'rpm';
 $config = Build::read_config_dist($dist_opt, $arch || 'noarch', $configdir) if $dist_opt;
 my $no_files_generation = ($config->{'buildflags:spdx-files-generation'} || '') eq 'no';
 
-my @license_mapping_files = $config->{'buildflags:spdx-license-mapping'} || ();
+my @license_mapping_files = map { /^spdx-license-mapping:(.*)/ ? $1 : () } @{$config->{'buildflags'}};
 my $license_mapping = {};
 foreach ( @license_mapping_files ) {
   my $href = spdx_license_mapping($toprocess . $_);
@@ -858,7 +861,7 @@ if ($isproduct) {
   $pkgtype = pkgtype_from_dist($dist);
   #if it is a ubuntu id_like contains debian
   if ($pkgtype eq 'deb') {
-    $pkgs = read_pkgs_deb($toprocess);
+    $pkgs = read_pkgs_deb($toprocess, $license_mapping);
   } elsif ($pkgtype eq 'rpm') {
     dump_rpmdb($toprocess, "$tmpdir/rpmdb");
     $pkgs = read_pkgs_rpmdb("$tmpdir/rpmdb");
