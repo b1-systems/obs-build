@@ -333,7 +333,7 @@ sub map_license {
 }
 
 sub parse_debian_copyright_file {
-  my ($root, $pkg, $license_mapping) = @_;
+  my ($root, $pkg) = @_;
   my $file = "$root/usr/share/doc/$pkg/copyright";
   if ( -l $file ) {
       $file = $root . readlink $file;
@@ -353,11 +353,7 @@ sub parse_debian_copyright_file {
       push @copyright, $1 if $1 ne '';
     } elsif (/^License:\s*(.*)$/) {
       $crfound = 0;
-      if (keys %$license_mapping) {
-        push @license, map_license($1, $license_mapping) if $1 ne '';
-      } else {
-        push @license, $1 if $1 ne '';
-      }
+      push @license, $1 if $1 ne '';
     } elsif (/^(Files|Comment|Disclaimer|Source|Upstream-Name|Upstream-Contact):/) {
       $crfound = 0;
     } elsif (/^\s{1,}(.*)$/ and $crfound) {
@@ -375,7 +371,7 @@ sub parse_debian_copyright_file {
 }
 
 sub read_deb {
-  my ($root, $ctrl, $license_mapping) = @_;
+  my ($root, $ctrl) = @_;
   my %res = Build::Deb::control2res($ctrl);
   return undef unless defined($res{'PACKAGE'}) && defined($res{'VERSION'});
   my %data;
@@ -389,7 +385,7 @@ sub read_deb {
   $data{'ARCH'} = $res{'ARCHITECTURE'} if defined $res{'ARCHITECTURE'};
   $data{'URL'} = $res{'HOMEPAGE'} if defined $res{'HOMEPAGE'};
   $data{'MAINTAINER'} = $res{'MAINTAINER'} if defined $res{'MAINTAINER'};
-  my $license = parse_debian_copyright_file($root, $data{'NAME'}, $license_mapping);
+  my $license = parse_debian_copyright_file($root, $data{'NAME'});
   $data{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
   $data{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
   if ($res{'STATIC-BUILT-USING'}) {
@@ -401,21 +397,22 @@ sub read_deb {
 }
 
 sub read_deb_bu {
-  my ($root, $name, $evr, $license_mapping) = @_;
+  my ($root, $name, $evr) = @_;
   my %data = ( 'NAME' => $name, 'EVR' => $evr );
   if ($evr =~ /^(?:(\d+):)?(.*?)(?:-([^-]*))?$/s) {
     $data{'EPOCH'} = $1 if defined $1;
     $data{'VERSION'} = $2;
     $data{'RELEASE'} = $3 if defined $3;
   }
-  my $license = parse_debian_copyright_file($root, $name, $license_mapping);
+  my $license = parse_debian_copyright_file($root, $name);
   $data{'LICENSE'} = $license->{'license'} if defined $license->{'license'};
   $data{'COPYRIGHTTEXT'} = $license->{'copyright'} if defined $license->{'copyright'};
   return \%data;
 }
 
 sub read_pkgs_deb {
-  my ($root, $license_mapping) = @_;
+  my ($root) = @_;
+
   my $vendorstring = Build::Rpm::expandmacros($config, '%?vendor');
   my @pkgs;
   local *F;
@@ -425,7 +422,7 @@ sub read_pkgs_deb {
     my $ctrl = '';
     while(<F>) {
       if ($_ eq "\n") {
-	my $data = read_deb($root, $ctrl, $license_mapping);
+	my $data = read_deb($root, $ctrl);
 	if ($data) {
 	  $data->{'VENDOR'} = $vendorstring if $vendorstring;
 	  push @pkgs, $data;
@@ -443,7 +440,7 @@ sub read_pkgs_deb {
   for my $bd (@bupkgs) {
     next unless $bd =~ /(.+)\s+\(\s*=\s*(.+)\s*\)/;
     next if $seen_pkg{"$1-$2"};
-    my $data = read_deb_bu($root, $1, $2, $license_mapping);
+    my $data = read_deb_bu($root, $1, $2);
     if ($data) {
       $data->{'VENDOR'} = $vendorstring if $vendorstring;
       push @pkgs, $data;
@@ -660,7 +657,7 @@ my $spdx_json_template = {
 };
 
 sub spdx_encode_pkg {
-  my ($p, $distro, $pkgtype) = @_;
+  my ($p, $distro, $pkgtype, $license_mapping) = @_;
   my $vr = $p->{'VERSION'};
   $vr = "$vr-$p->{'RELEASE'}" if defined $p->{'RELEASE'};
   my $evr = $vr;
@@ -684,7 +681,11 @@ sub spdx_encode_pkg {
   my $license = $p->{'LICENSE'};
   if ($license) {
     $license =~ s/ and / AND /g;
-    $spdx->{'licenseConcluded'} = $license;
+    if (keys %$license_mapping) {
+      $spdx->{'licenseConcluded'} = map_license($license, $license_mapping);
+    } else {
+      $spdx->{'licenseConcluded'} = $license;
+    }
     $spdx->{'licenseDeclared'} = $license unless ($config->{'buildflags:spdx-declared-license'} || '') eq 'NOASSERTION';
   }
   $spdx->{'copyrightText'} = 'NOASSERTION';
@@ -861,7 +862,7 @@ if ($isproduct) {
   $pkgtype = pkgtype_from_dist($dist);
   #if it is a ubuntu id_like contains debian
   if ($pkgtype eq 'deb') {
-    $pkgs = read_pkgs_deb($toprocess, $license_mapping);
+    $pkgs = read_pkgs_deb($toprocess);
   } elsif ($pkgtype eq 'rpm') {
     dump_rpmdb($toprocess, "$tmpdir/rpmdb");
     $pkgs = read_pkgs_rpmdb("$tmpdir/rpmdb");
@@ -899,7 +900,7 @@ if ($format eq 'spdx') {
   $intoto_type = 'https://spdx.dev/Document';
   $doc = spdx_encode_header($subjectname);
   for my $p (@$pkgs) {
-    push @{$doc->{'packages'}}, spdx_encode_pkg($p, $distro, $pkgtype);
+    push @{$doc->{'packages'}}, spdx_encode_pkg($p, $distro, $pkgtype, $license_mapping);
   }
   for my $f (@$files) {
     next if $f->{'SKIP'};
