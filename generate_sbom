@@ -307,6 +307,12 @@ sub map_license {
       push(@licenses_with, map_license($l, $license_mapping));
     }
     $license = join(' WITH ', @licenses_with);
+  } elsif ( $license =~ /\sand\s/i ) {
+    my @licenses_and;
+    foreach my $l (split(/\sand\s/i, $license)) {
+      push(@licenses_and, map_license($l, $license_mapping));
+    }
+    $license = join(' AND ', @licenses_and);
   } elsif (defined $license_mapping->{$license}) {
     $license = $license_mapping->{$license};
   } else {
