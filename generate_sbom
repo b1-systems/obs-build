@@ -326,7 +326,7 @@ sub map_license {
   } elsif (defined $license_mapping->{$license}) {
     $license = $license_mapping->{$license};
   } else {
-    warn("SPDX-License-Mapping: License for package $pkg not found in mapping: $license\n");
+    warn("SPDX-License-Mapping: License for package \"$pkg\" not found in mapping: $license\n");
     $license = "NOASSERTION";
   }
   if ( $license =~ /NOASSERTION/) {
