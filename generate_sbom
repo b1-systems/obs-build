@@ -326,7 +326,7 @@ sub map_license {
   } elsif (defined $license_mapping->{$license}) {
     $license = $license_mapping->{$license};
   } else {
-    warn("SPDX-License-Mapping: License for $pkg not found in mapping: $license\n");
+    warn("SPDX-License-Mapping: License for package $pkg not found in mapping: $license\n");
     $license = "NOASSERTION";
   }
   if ( $license =~ /NOASSERTION/) {
@@ -849,6 +849,8 @@ if (@license_mapping_files > 0) {
       my $href = spdx_license_mapping($toprocess . $mapping_file);
       %$license_mapping = (%$license_mapping, %$href);
     }
+  } else {
+    warn("No license mapping as JSON::XS is not available!");
   }
 }
 
