@@ -284,20 +284,23 @@ sub read_pkgs_rpmdb {
 }
 
 sub spdx_license_mapping {
-  my ($mappingfile) = @_;
-  # read in file, format:
-  # "license in file"=>"license in spdx"
-  my %license_mapping;
+  my ($mapping_file) = @_;
   local *F;
-  if (open(F, '<', $mappingfile)) {
-    while(<F>) {
-      next if $_ =~ /^\s*#/;
-      if ($_ =~ /^"(.*)"=>"(.*)"$/ ) {
-          $license_mapping{$1} = $2;
-      }
+  warn $mapping_file;
+  my $json_t = do {
+    unless (open(F, '<', $mapping_file)) {
+      warn("Could not read license mapping file $mapping_file, $!");
+      return {};
     }
+    local $/;
+    <F>
+  };
+  my $license_mapping = eval { JSON::XS::decode_json($json_t) };
+  if ($@) {
+    warn("Failed to parse $mapping_file: $@");
+    return {};
   }
-  return \%license_mapping;
+  return $license_mapping;
 }
 
 sub map_license {
@@ -834,10 +837,21 @@ my $no_files_generation = ($config->{'buildflags:spdx-files-generation'} || '') 
 
 my @license_mapping_files = map { /^spdx-license-mapping:(.*)/ ? $1 : () } @{$config->{'buildflags'}};
 my $license_mapping = {};
-foreach ( @license_mapping_files ) {
-  my $href = spdx_license_mapping($toprocess . $_);
-  %$license_mapping = (%$license_mapping, %$href);
+my $jsonxs_available=0;
+eval
+{
+  require JSON::XS;
+  $jsonxs_available=1;
+};
+if (@license_mapping_files > 0) {
+  if ($jsonxs_available) {
+    foreach my $mapping_file ( @license_mapping_files ) {
+      my $href = spdx_license_mapping($toprocess . $mapping_file);
+      %$license_mapping = (%$license_mapping, %$href);
+    }
+  }
 }
+
 
 if ($isproduct) {
   # product case
