@@ -286,7 +286,6 @@ sub read_pkgs_rpmdb {
 sub spdx_license_mapping {
   my ($mapping_file) = @_;
   local *F;
-  warn $mapping_file;
   my $json_t = do {
     unless (open(F, '<', $mapping_file)) {
       warn("Could not read license mapping file $mapping_file, $!");
